@@ -1,7 +1,9 @@
-const CACHE_NAME = 'ledger-v1';
+const CACHE_NAME = 'ledger-v2';
 const urlsToCache = [
   'index.html',
   'manifest.json',
+  'icon-192.png',
+  'icon-512.png',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
 ];
 
