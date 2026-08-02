@@ -3,1515 +3,827 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>极简记账</title>
-    <!-- ===== PWA 关键配置 ===== -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4a9e8a">
-    <!-- iOS 支持 -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icon-192.png">
-    <!-- Chart.js -->
+    <title>极简记账 · AI理财助手</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
-        /* ===== 基础样式不变，仅修改底部导航和 body 安全区域 ===== */
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-        body { 
-            background-color: #f2f6f5; 
-            display: flex; 
-            justify-content: center; 
-            align-items: flex-start; 
-            min-height: 100vh; 
-            padding: 12px 0 0 0;
-            padding-bottom: env(safe-area-inset-bottom); /* 安全区域 */
-        }
-        .app { 
-            max-width: 420px; 
-            width: 100%; 
-            background-color: #ffffff; 
-            border-radius: 32px 32px 0 0; 
-            box-shadow: 0 8px 40px rgba(0, 20, 30, 0.08); 
-            min-height: 90vh; 
-            padding: 24px 20px 100px 20px; 
-            position: relative; 
-            overflow: hidden; 
-        }
-        /* 白玉兰背景 */
-        .magnolia-bg {
-            position: absolute;
-            right: -20px;
-            bottom: 40px;
-            width: 220px;
-            height: 220px;
-            opacity: 0.08;
-            pointer-events: none;
-            z-index: 0;
-            transform: rotate(15deg);
-        }
-        .magnolia-bg svg {
-            width: 100%;
-            height: 100%;
-        }
+        body { background: #f0f4f3; display: flex; justify-content: center; min-height: 100vh; padding-bottom: 40px; }
+        .app { max-width: 480px; width: 100%; background: #fff; min-height: 100vh; padding: 20px 16px 120px; box-shadow: 0 0 30px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+        .header h1 { font-size: 24px; color: #2d3e3a; }
+        .header-actions { display: flex; gap: 8px; }
+        .header-actions button { background: #eaf0ee; border: 1px solid #d5deda; border-radius: 30px; padding: 8px 14px; font-size: 13px; color: #2d3e3a; cursor: pointer; font-weight: 500; }
 
-        .page, .month-selector, .summary-card, .budget-bar, .filter-tabs, .today-header, #billListContainer, .category-demo, .bottom-nav, .fab {
-            position: relative;
-            z-index: 1;
-        }
+        /* 余额卡片 - 左右布局 */
+        .balance-card { background: #f7faf8; border: 1px solid #d5deda; border-radius: 20px; padding: 18px 20px; color: #2d3e3a; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .balance-left { flex: 1; }
+        .balance-left .label { font-size: 13px; color: #6b7f7a; }
+        .balance-left .amount { font-size: 28px; font-weight: 700; margin-top: 4px; color: #2d3e3a; }
+        .balance-left .edit-btn { background: #eaf0ee; border: 1px solid #d5deda; border-radius: 30px; padding: 5px 14px; color: #2d3e3a; font-size: 12px; cursor: pointer; margin-top: 10px; }
+        .balance-right { display: flex; flex-direction: column; gap: 10px; text-align: right; }
+        .balance-stat { display: flex; justify-content: space-between; gap: 20px; font-size: 14px; align-items: center; }
+        .balance-stat .stat-label { color: #8fa39e; font-size: 13px; }
+        .balance-stat .stat-value { font-weight: 700; font-size: 16px; }
 
-        .page { display: none; animation: fadeIn 0.25s ease; }
-        .page.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0.6; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        /* 周期切换器 */
+        .period-switcher { display: flex; gap: 10px; margin-bottom: 14px; }
+        .period-switcher button { flex: 1; padding: 10px 0; border: none; border-radius: 30px; background: #eaf0ee; color: #6b7f7a; font-size: 15px; font-weight: 500; cursor: pointer; }
+        .period-switcher button.active { background: #4a9e8a; color: #fff; }
 
-        /* 月份选择器 */
-        .month-selector { 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            background: #eaf0ee; 
-            border-radius: 30px; 
-            padding: 6px 12px; 
-            margin-bottom: 16px; 
-        }
-        .month-selector .arrow { 
-            background: none; 
-            border: none; 
-            font-size: 20px; 
-            color: #6b7f7a; 
-            cursor: pointer; 
-            padding: 0 10px; 
-            transition: 0.15s; 
-        }
-        .month-selector .arrow:active { transform: scale(0.9); }
-        .month-selector .month-label { 
-            font-size: 18px; 
-            font-weight: 600; 
-            color: #2d3e3a; 
-            cursor: pointer; 
-            padding: 4px 12px; 
-            border-radius: 20px; 
-            transition: 0.15s; 
-        }
-        .month-selector .month-label:active { background: #d5deda; }
+        .expense { color: #d95b5b; }
+        .income { color: #3d9b7a; }
 
-        /* 月份选择面板 */
-        .month-picker-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.25); backdrop-filter: blur(2px); z-index: 300; display: none; justify-content: center; align-items: center; }
-        .month-picker-overlay.show { display: flex; }
-        .month-picker-panel { background: #ffffff; border-radius: 24px; padding: 24px 20px; max-width: 320px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-        .month-picker-panel .picker-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-        .month-picker-panel .picker-header button { background: none; border: none; font-size: 20px; color: #6b7f7a; cursor: pointer; padding: 0 8px; }
-        .month-picker-panel .picker-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .month-picker-panel .picker-grid .month-btn { padding: 12px 0; border: 1px solid #dde6e2; border-radius: 12px; background: #f8faf9; font-size: 15px; font-weight: 500; color: #2d3e3a; cursor: pointer; transition: 0.15s; }
-        .month-picker-panel .picker-grid .month-btn:active { background: #d5deda; }
-        .month-picker-panel .picker-grid .month-btn.active { background: #4a9e8a; color: #fff; border-color: #4a9e8a; }
+        .month-row { display: flex; justify-content: space-between; align-items: center; background: #f4f8f6; border-radius: 30px; padding: 8px 14px; margin-bottom: 14px; }
+        .month-row button { background: none; border: none; font-size: 22px; color: #6b7f7a; cursor: pointer; }
+        .month-row .month { font-size: 17px; font-weight: 600; color: #2d3e3a; }
+        .tab-bar { display: flex; gap: 10px; margin-bottom: 14px; }
+        .tab-bar button { flex: 1; padding: 12px 0; border: none; border-radius: 30px; background: #eaf0ee; color: #6b7f7a; font-size: 15px; font-weight: 500; cursor: pointer; }
+        .tab-bar button.active { background: #4a9e8a; color: #fff; }
+        .view { display: none; }
+        .view.active { display: block; }
+        .bill-list { display: flex; flex-direction: column; gap: 8px; }
+        .bill-item { display: flex; align-items: center; background: #fafcfb; border: 1px solid #eaf0ee; border-radius: 16px; padding: 12px 14px; }
+        .bill-icon { width: 38px; height: 38px; background: #eaf0ee; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-right: 12px; }
+        .bill-info { flex: 1; }
+        .bill-cat { font-size: 15px; font-weight: 600; color: #2d3e3a; }
+        .bill-sub { font-size: 12px; color: #8fa39e; }
+        .bill-amount { font-weight: 700; font-size: 18px; }
+        .empty-tip { background: #f4f8f6; border: 1px dashed #d5deda; border-radius: 16px; padding: 32px 16px; text-align: center; color: #8fa39e; font-size: 14px; }
+        .chart-box { background: #fafcfb; border: 1px solid #eaf0ee; border-radius: 18px; padding: 16px 14px; margin-bottom: 16px; }
+        .chart-box h3 { font-size: 15px; color: #2d3e3a; margin-bottom: 12px; text-align: center; }
+        .chart-box canvas { max-height: 220px; width: 100% !important; height: auto !important; }
 
-        /* 汇总卡片 */
-        .summary-card { 
-            background: #fafcfb; 
-            border-radius: 24px; 
-            padding: 20px 20px 18px 20px; 
-            margin-bottom: 16px; 
-            box-shadow: 0 2px 12px rgba(0, 30, 20, 0.06);
-            border: 1px solid #eaf0ee;
-            position: relative;
-            overflow: hidden;
-        }
-        .summary-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            margin-bottom: 6px;
-        }
-        .summary-header .month-label {
-            font-size: 15px;
-            font-weight: 500;
-            color: #6b7f7a;
-        }
-        .summary-header .total-label {
-            font-size: 13px;
-            color: #8fa39e;
-        }
-        .summary-numbers {
-            display: flex;
-            justify-content: space-between;
-            padding-top: 8px;
-            border-top: 1px solid #eaf0ee;
-        }
-        .summary-numbers .item {
-            flex: 1;
-            text-align: center;
-        }
-        .summary-numbers .item .label {
-            font-size: 13px;
-            color: #8fa39e;
-            font-weight: 400;
-        }
-        .summary-numbers .item .number {
-            font-size: 22px;
-            font-weight: 600;
-            margin-top: 2px;
-        }
-        .summary-numbers .item .number.expense { color: #d95b5b; }
-        .summary-numbers .item .number.income { color: #3d9b7a; }
+        /* AI */
+        .ai-container { background: #fafcfb; border: 1px solid #eaf0ee; border-radius: 20px; padding: 16px; margin-bottom: 16px; }
+        .ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .ai-header span { font-size: 16px; font-weight: 700; color: #2d3e3a; }
+        .ai-header .ai-badge { background: #4a9e8a; color: #fff; border-radius: 30px; padding: 4px 14px; font-size: 12px; }
+        .ai-chat { background: #fff; border: 1px solid #eaf0ee; border-radius: 16px; padding: 14px; max-height: 300px; overflow-y: auto; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+        .msg { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.5; word-break: break-word; white-space: pre-line; }
+        .msg.user { background: #4a9e8a; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg.ai { background: #f0f4f3; color: #2d3e3a; align-self: flex-start; border-bottom-left-radius: 4px; }
+        .msg.thinking { color: #8fa39e; font-style: italic; }
+        .ai-quick-tasks { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .ai-quick-tasks button { background: #eaf0ee; border: 1px solid #d5deda; border-radius: 30px; padding: 5px 14px; font-size: 12px; color: #2d3e3a; cursor: pointer; }
+        .ai-input-row { display: flex; gap: 8px; }
+        .ai-input-row input { flex: 1; padding: 12px 14px; border: 1px solid #d5deda; border-radius: 16px; font-size: 14px; outline: none; }
+        .ai-input-row input:focus { border-color: #4a9e8a; }
+        .ai-input-row button { background: #4a9e8a; border: none; border-radius: 16px; padding: 12px 20px; color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; }
+        .ai-footer-note { font-size: 11px; color: #8fa39e; text-align: center; margin-top: 6px; }
+        .ai-footer-note a { color: #4a9e8a; text-decoration: none; cursor: pointer; }
 
-        /* 预算进度条 + 备份恢复按钮 */
-        .budget-bar { 
-            background: #f4f8f6; 
-            border-radius: 18px; 
-            padding: 14px 16px; 
-            margin-bottom: 16px; 
-            border: 1px solid #eaf0ee; 
-        }
-        .budget-bar .budget-header { display: flex; justify-content: space-between; font-size: 14px; font-weight: 500; color: #2d3e3a; margin-bottom: 6px; }
-        .budget-bar .budget-header .over-budget { color: #d95b5b; }
-        .budget-bar .track { width: 100%; height: 8px; background: #dde6e2; border-radius: 10px; overflow: hidden; }
-        .budget-bar .track .fill { height: 100%; background: #4a9e8a; border-radius: 10px; transition: width 0.4s ease; }
-        .budget-bar .track .fill.warning { background: #e6b85c; }
-        .budget-bar .track .fill.danger { background: #d95b5b; }
-        .budget-bar .budget-actions { 
-            margin-top: 8px; 
-            display: flex; 
-            justify-content: flex-end; 
-            gap: 8px; 
-            flex-wrap: wrap; 
-        }
-        .budget-bar .budget-actions button { 
-            background: none; 
-            border: 1px solid #d5deda; 
-            border-radius: 20px; 
-            padding: 2px 14px; 
-            font-size: 12px; 
-            color: #6b7f7a; 
-            cursor: pointer; 
-            transition: 0.15s; 
-        }
-        .budget-bar .budget-actions button:active { background: #d5deda; }
-        .budget-bar .budget-actions .reset-btn { color: #d95b5b; border-color: #f0d0d0; }
-        .budget-bar .budget-actions .backup-btn { color: #4a9e8a; border-color: #aad0c0; }
-        .budget-bar .budget-actions .restore-btn { color: #6b7f7a; border-color: #d5deda; }
-        /* 安装按钮（Android 专用） */
-        .install-btn { 
-            background: #4a9e8a; 
-            color: #fff; 
-            border: none; 
-            border-radius: 20px; 
-            padding: 2px 14px; 
-            font-size: 12px; 
-            cursor: pointer; 
-            display: none; /* 默认隐藏，由 beforeinstallprompt 触发显示 */
-        }
-        .install-btn:active { background: #3a8a78; }
+        .fab { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); max-width: 480px; width: calc(100% - 32px); padding: 16px; background: #4a9e8a; border: none; border-radius: 30px; color: #fff; font-size: 17px; font-weight: 600; box-shadow: 0 8px 24px rgba(74,158,138,0.4); cursor: pointer; z-index: 100; }
 
-        .filter-tabs { display: flex; gap: 8px; margin: 12px 0 6px 0; }
-        .filter-tab { padding: 4px 16px; border-radius: 30px; font-size: 14px; font-weight: 500; background: #eaf0ee; color: #6b7f7a; cursor: pointer; border: none; transition: 0.15s; }
-        .filter-tab.active { background: #4a9e8a; color: #fff; }
-        .filter-tab:active { transform: scale(0.94); }
-
-        .today-header { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; margin-bottom: 6px; }
-        .today-header .day { font-size: 16px; font-weight: 600; color: #2d3e3a; }
-        .today-header .sub { font-size: 13px; color: #8fa39e; }
-
-        .bill-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
-        .bill-item { display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 12px 14px; border-radius: 16px; border: 1px solid #eaf0ee; }
-        .bill-left { display: flex; align-items: center; gap: 12px; flex: 1; }
-        .bill-icon { width: 36px; height: 36px; background: #f4f8f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #6b7f7a; font-weight: 500; flex-shrink: 0; }
-        .bill-info .cat { font-size: 15px; font-weight: 500; color: #2d3e3a; }
-        .bill-info .note { font-size: 12px; color: #8fa39e; margin-top: 2px; }
-        .bill-amount { font-weight: 600; font-size: 16px; margin-right: 8px; }
-        .bill-amount.expense { color: #d95b5b; }
-        .bill-amount.income { color: #3d9b7a; }
-        .bill-actions { display: flex; gap: 6px; align-items: center; }
-        .bill-edit, .bill-delete { background: none; border: none; font-size: 18px; cursor: pointer; padding: 0 4px; transition: 0.15s; }
-        .bill-edit { color: #8fa39e; }
-        .bill-edit:hover { color: #4a9e8a; }
-        .bill-delete { color: #d5deda; }
-        .bill-delete:hover { color: #d95b5b; }
-        .empty-tip { background: #f4f8f6; border-radius: 18px; padding: 30px 18px; text-align: center; color: #8fa39e; font-size: 14px; border: 1px dashed #d5deda; margin-top: 10px; }
-
-        /* 统计页 */
-        .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .stat-header h2 { font-size: 22px; font-weight: 700; color: #2d3e3a; }
-        .stat-header .export-btn { background: #eaf0ee; border: 1px solid #d5deda; border-radius: 30px; padding: 6px 16px; font-size: 13px; color: #6b7f7a; cursor: pointer; font-weight: 500; transition: 0.15s; }
-        .stat-header .export-btn:active { background: #d5deda; }
-
-        .stat-tabs { display: flex; gap: 10px; margin: 12px 0 18px 0; }
-        .stat-tabs span { font-size: 15px; padding: 6px 14px; background: #eaf0ee; border-radius: 30px; color: #6b7f7a; font-weight: 500; cursor: pointer; transition: 0.15s; }
-        .stat-tabs span.active { background: #4a9e8a; color: #fff; }
-        .stat-tabs span:active { transform: scale(0.94); }
-
-        .stat-month-label { font-size: 16px; font-weight: 600; color: #2d3e3a; margin-bottom: 14px; }
-
-        .stat-summary-row { display: flex; background: #f4f8f6; border-radius: 18px; padding: 14px 0; margin-bottom: 16px; }
-        .stat-summary-row .s-item { flex: 1; text-align: center; }
-        .stat-summary-row .s-item .s-label { font-size: 12px; color: #6b7f7a; }
-        .stat-summary-row .s-item .s-num { font-size: 18px; font-weight: 600; margin-top: 2px; }
-        .s-num.s-income { color: #3d9b7a; }
-        .s-num.s-expense { color: #d95b5b; }
-        .s-num.s-balance { color: #2d3e3a; }
-
-        .chart-container { background: #fafcfb; border-radius: 18px; padding: 16px 12px; margin-bottom: 20px; border: 1px solid #eaf0ee; position: relative; }
-        .chart-container h4 { font-size: 14px; color: #6b7f7a; margin-bottom: 10px; text-align: center; font-weight: 600; }
-        .chart-container canvas { width: 100% !important; height: auto !important; max-height: 180px; }
-
-        /* 底部导航 - 修复安全区域 */
-        .bottom-nav { 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            right: 0; 
-            display: flex; 
-            justify-content: center; 
-            gap: 40px; 
-            background: #ffffff; 
-            padding: 14px 20px 18px 20px; 
-            padding-bottom: calc(18px + env(safe-area-inset-bottom)); /* 关键修复 */
-            border-top: 1px solid #eaf0ee; 
-            max-width: 420px; 
-            margin: 0 auto; 
-            border-radius: 28px 28px 0 0; 
-            z-index: 100; 
-        }
-        .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 12px; color: #8fa39e; cursor: pointer; background: none; border: none; font-weight: 500; gap: 2px; }
-        .nav-item .icon { font-size: 24px; line-height: 1; }
-        .nav-item.active { color: #4a9e8a; }
-
-        .fab { position: fixed; bottom: 90px; right: calc(50% - 180px); background: #4a9e8a; color: #ffffff; border: none; width: 60px; height: 60px; border-radius: 30px; font-size: 16px; font-weight: 600; box-shadow: 0 8px 24px rgba(74, 158, 138, 0.35); cursor: pointer; z-index: 99; display: flex; align-items: center; justify-content: center; gap: 4px; }
-        @media (max-width: 440px) { .fab { right: 20px; } }
-
-        /* 弹窗 */
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); backdrop-filter: blur(4px); z-index: 200; display: none; justify-content: center; align-items: flex-end; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); z-index: 200; display: none; justify-content: center; align-items: flex-end; }
         .modal-overlay.show { display: flex; }
-        .modal-content { background: #ffffff; width: 100%; max-width: 420px; border-radius: 32px 32px 0 0; padding: 24px 20px 30px 20px; animation: slideUp 0.3s ease; }
+        .modal-content { background: #fff; width: 100%; max-width: 480px; border-radius: 28px 28px 0 0; padding: 24px 20px calc(24px + env(safe-area-inset-bottom)); animation: slideUp .25s ease; }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
         .modal-header h3 { font-size: 20px; color: #2d3e3a; }
-        .modal-close { background: none; border: none; font-size: 24px; color: #8fa39e; cursor: pointer; padding: 0 8px; }
-
+        .modal-close { background: none; border: none; font-size: 24px; color: #8fa39e; cursor: pointer; }
         .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; font-size: 14px; font-weight: 500; color: #6b7f7a; margin-bottom: 4px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #6b7f7a; margin-bottom: 6px; }
         .form-group input, .form-group select { width: 100%; padding: 12px 14px; border: 1px solid #d5deda; border-radius: 16px; font-size: 16px; background: #fafcfb; outline: none; }
         .form-group input:focus, .form-group select:focus { border-color: #4a9e8a; background: #fff; }
         .form-row { display: flex; gap: 12px; }
         .form-row .form-group { flex: 1; }
-
-        /* 金额输入数字键盘 */
-        .form-group input[type="number"] {
-            -moz-appearance: textfield;
-        }
-        .form-group input[type="number"]::-webkit-outer-spin-button,
-        .form-group input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-
-        .voice-btn { background: #f4f8f6; border: 1px solid #d5deda; border-radius: 16px; padding: 12px 16px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: #6b7f7a; width: 100%; }
-        .voice-btn:active { background: #d5deda; }
-        .voice-btn.listening { background: #fce4e4; color: #d95b5b; border-color: #d95b5b; animation: pulse 1s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-
-        .btn-save { width: 100%; padding: 14px; background: #4a9e8a; color: #fff; border: none; border-radius: 30px; font-size: 18px; font-weight: 600; cursor: pointer; margin-top: 8px; }
-        .btn-save:active { transform: scale(0.97); background: #3a8a78; }
-
-        .category-demo { margin-top: 18px; background: #f4f8f6; border-radius: 16px; padding: 14px 16px; border: 1px solid #eaf0ee; max-height: 140px; overflow-y: auto; }
-        .category-demo .tag { display: inline-block; background: #ffffff; border: 1px solid #d5deda; border-radius: 20px; padding: 2px 12px; font-size: 11px; color: #6b7f7a; margin: 3px 4px 3px 0; }
-        .category-demo .tag-title { font-size: 12px; font-weight: 600; color: #2d3e3a; margin-right: 6px; }
-        .text-muted-small { font-size: 13px; color: #8fa39e; }
-        .reset-hint { font-size: 13px; color: #d95b5b; background: #fce4e4; padding: 10px 12px; border-radius: 12px; margin-bottom: 16px; }
-        .no-data-msg { text-align: center; color: #8fa39e; padding: 20px; }
-
-        /* 隐藏的文件输入 */
-        #restoreFileInput { display: none; }
+        .btn-save { width: 100%; padding: 14px; background: #4a9e8a; border: none; border-radius: 30px; color: #fff; font-size: 17px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+        .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #eaf0ee; font-size: 15px; color: #2d3e3a; }
+        .settings-item .status-used { color: #4a9e8a; }
+        .settings-item .status-idle { color: #8fa39e; }
     </style>
 </head>
 <body>
-<div class="app">
-
-    <!-- 白玉兰背景 -->
-    <div class="magnolia-bg">
-        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="100" cy="60" rx="20" ry="50" fill="#fff" transform="rotate(0, 100, 60)" opacity="0.9"/>
-            <ellipse cx="100" cy="60" rx="20" ry="50" fill="#fff" transform="rotate(72, 100, 60)" opacity="0.9"/>
-            <ellipse cx="100" cy="60" rx="20" ry="50" fill="#fff" transform="rotate(144, 100, 60)" opacity="0.9"/>
-            <ellipse cx="100" cy="60" rx="20" ry="50" fill="#fff" transform="rotate(216, 100, 60)" opacity="0.9"/>
-            <ellipse cx="100" cy="60" rx="20" ry="50" fill="#fff" transform="rotate(288, 100, 60)" opacity="0.9"/>
-            <circle cx="100" cy="60" r="12" fill="#e8f0ed" opacity="0.8"/>
-            <circle cx="100" cy="60" r="6" fill="#d5deda" opacity="0.9"/>
-        </svg>
-    </div>
-
-    <!-- ===== 记录页 ===== -->
-    <div id="page-record" class="page active">
-        <div class="month-selector">
-            <button class="arrow" id="prevMonthBtn">‹</button>
-            <span class="month-label" id="monthLabel">2026年7月</span>
-            <button class="arrow" id="nextMonthBtn">›</button>
-        </div>
-
-        <!-- 预算进度条 + 备份恢复按钮 -->
-        <div class="budget-bar" id="budgetBar">
-            <div class="budget-header">
-                <span>💰 本月预算</span>
-                <span id="budgetStatus">未设置预算</span>
-            </div>
-            <div class="track">
-                <div class="fill" id="budgetFill" style="width:0%;"></div>
-            </div>
-            <div class="budget-actions">
-                <button id="budgetSetBtn">设置预算</button>
-                <button id="budgetClearBtn" style="color:#d95b5b;border-color:#f0d0d0;">清除</button>
-                <button class="backup-btn" id="backupBtn">💾 备份</button>
-                <button class="restore-btn" id="restoreBtn">📂 恢复</button>
-                <button class="reset-btn" id="resetDataBtn">🔄 重置数据</button>
-                <button class="install-btn" id="installAppBtn">📲 安装应用</button>
+    <div class="app">
+        <div class="header">
+            <h1>💰 极简记账</h1>
+            <div class="header-actions">
+                <button id="exportBtn">📤 导出</button>
+                <button id="settingsBtn">⚙️</button>
             </div>
         </div>
 
-        <!-- 汇总卡片 -->
-        <div class="summary-card">
-            <div class="summary-header">
-                <span class="month-label" id="summaryMonthLabel">2026年07月</span>
-                <span class="total-label">本月</span>
+        <div class="tab-bar">
+            <button class="active" id="tabList">📋 账单</button>
+            <button id="tabStats">📊 统计</button>
+        </div>
+
+        <!-- 账单视图 -->
+        <div class="view active" id="listView">
+            <div class="month-row">
+                <button id="prevMonth">‹</button>
+                <span class="month" id="monthLabel">2026年8月</span>
+                <button id="nextMonth">›</button>
             </div>
-            <div class="summary-numbers">
-                <div class="item">
-                    <div class="label">支出</div>
-                    <div class="number expense" id="monthTotalExpense">¥0.00</div>
+            <div id="billListContainer"></div>
+        </div>
+
+        <!-- 统计视图 -->
+        <div class="view" id="statsView">
+            <!-- 余额卡片：左余额，右收支 -->
+            <div class="balance-card">
+                <div class="balance-left">
+                    <div class="label">当前余额</div>
+                    <div class="amount" id="balanceDisplay">¥0.00</div>
+                    <button class="edit-btn" id="editBalanceBtn">✏️ 修改余额</button>
                 </div>
-                <div class="item">
-                    <div class="label">收入</div>
-                    <div class="number income" id="monthIncome">¥0.00</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="filter-tabs">
-            <button class="filter-tab active" data-filter="all">全部</button>
-            <button class="filter-tab" data-filter="expense">支出</button>
-            <button class="filter-tab" data-filter="income">收入</button>
-        </div>
-        <div class="today-header"><span class="day" id="todayLabel">2026年7月</span><span class="sub">总账本</span></div>
-        <div id="billListContainer"></div>
-        <div style="margin-top: 18px; opacity:0.7;">
-            <details style="cursor:pointer; font-size:12px; color:#6b7f7a;">
-                <summary>📂 已预设全部分类（点击展开）</summary>
-                <div class="category-demo" id="categoryDemoContainer"></div>
-            </details>
-        </div>
-    </div>
-
-    <!-- ===== 统计页 ===== -->
-    <div id="page-stat" class="page">
-        <div class="stat-header">
-            <h2>📊 统计</h2>
-            <button class="export-btn" id="exportCsvBtn">📤 导出CSV</button>
-        </div>
-        <div class="stat-tabs" id="statViewTabs">
-            <span class="active" data-view="month">月</span>
-            <span data-view="year">年</span>
-        </div>
-        <div class="stat-month-label" id="statMonthLabel">2026年7月</div>
-
-        <!-- 预算进度（统计页也显示） -->
-        <div class="budget-bar" id="statBudgetBar" style="margin-bottom:16px;">
-            <div class="budget-header">
-                <span>💰 本月预算</span>
-                <span id="statBudgetStatus">未设置预算</span>
-            </div>
-            <div class="track">
-                <div class="fill" id="statBudgetFill" style="width:0%;"></div>
-            </div>
-        </div>
-
-        <div class="stat-summary-row">
-            <div class="s-item"><div class="s-label">支出</div><div class="s-num s-expense" id="statExpense">¥0.00</div></div>
-            <div class="s-item"><div class="s-label">收入</div><div class="s-num s-income" id="statIncome">¥0.00</div></div>
-            <div class="s-item"><div class="s-label">当前余额</div><div class="s-num s-balance" id="statBalance">¥0.00</div></div>
-        </div>
-
-        <div class="chart-container" id="trendContainer">
-            <h4 id="trendTitle">📈 每日支出趋势</h4>
-            <canvas id="trendChart"></canvas>
-        </div>
-
-        <div class="chart-container" id="pieContainer">
-            <h4 id="pieTitle">🍩 支出分类构成</h4>
-            <canvas id="pieChart"></canvas>
-        </div>
-    </div>
-
-    <!-- 底部导航 -->
-    <div class="bottom-nav">
-        <button class="nav-item active" data-page="page-record"><span class="icon">📋</span><span>记录</span></button>
-        <button class="nav-item" data-page="page-stat"><span class="icon">📊</span><span>统计</span></button>
-    </div>
-
-    <button class="fab" id="fabBtn">✏️ 记一笔</button>
-
-    <!-- 记账弹窗 -->
-    <div class="modal-overlay" id="modalOverlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">✏️ 记一笔</h3>
-                <button class="modal-close" id="modalCloseBtn">✕</button>
-            </div>
-            <div class="form-group">
-                <button class="voice-btn" id="voiceBtn">🎤 点击说话（自动识别分类）</button>
-                <div style="font-size:12px; color:#8fa39e; margin-top:4px; text-align:center;">支持说“午餐35”、“打车20”、“买牛肉50”等</div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>类型</label>
-                    <select id="inputType"><option value="expense">支出</option><option value="income">收入</option></select>
-                </div>
-                <div class="form-group">
-                    <label>金额 (¥)</label>
-                    <input type="number" id="inputAmount" placeholder="0.00" step="0.01" inputmode="decimal" pattern="[0-9]*">
-                </div>
-            </div>
-            <div class="form-group">
-                <label>📅 日期</label>
-                <input type="date" id="inputDate">
-            </div>
-            <div class="form-group">
-                <label>分类</label>
-                <select id="inputCategory"></select>
-            </div>
-            <div class="form-group">
-                <label>备注 (可选)</label>
-                <input type="text" id="inputNote" placeholder="写点什么...">
-            </div>
-            <button class="btn-save" id="saveBtn">✅ 保存</button>
-        </div>
-    </div>
-
-    <!-- 预算设置弹窗 -->
-    <div class="modal-overlay" id="budgetModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>💰 设置月度预算</h3>
-                <button class="modal-close" id="budgetModalClose">✕</button>
-            </div>
-            <div class="form-group">
-                <label>📆 月份</label>
-                <input type="text" id="budgetMonthDisplay" disabled style="background:#f4f8f6;color:#2d3e3a;">
-            </div>
-            <div class="form-group">
-                <label>预算金额 (¥)</label>
-                <input type="number" id="budgetAmountInput" placeholder="输入每月预算" step="0.01" min="0" inputmode="decimal">
-            </div>
-            <button class="btn-save" id="budgetSaveBtn">✅ 保存预算</button>
-        </div>
-    </div>
-
-    <!-- 重置数据弹窗 -->
-    <div class="modal-overlay" id="resetModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>🔄 重置所有数据</h3>
-                <button class="modal-close" id="resetModalClose">✕</button>
-            </div>
-            <div class="reset-hint">
-                ⚠️ 此操作将<strong>永久删除</strong>所有账单记录和预算数据，且无法恢复！
-            </div>
-            <div class="form-group">
-                <label>💵 当前账户余额 (¥)</label>
-                <input type="number" id="resetBalanceInput" placeholder="输入你目前的存款/现金总额" step="0.01" min="0" inputmode="decimal">
-                <div style="font-size:12px; color:#8fa39e; margin-top:4px;">这是你的初始资金，之后每一笔收支都会自动计算</div>
-            </div>
-            <button class="btn-save" id="resetConfirmBtn" style="background:#d95b5b;">⚠️ 确认重置</button>
-        </div>
-    </div>
-
-    <!-- 月份选择面板 -->
-    <div class="month-picker-overlay" id="monthPickerOverlay">
-        <div class="month-picker-panel">
-            <div class="picker-header">
-                <button id="pickerYearPrev">‹</button>
-                <span id="pickerYearLabel">2026</span>
-                <button id="pickerYearNext">›</button>
-            </div>
-            <div class="picker-grid" id="pickerGrid"></div>
-        </div>
-    </div>
-
-    <!-- 隐藏的文件输入用于恢复 -->
-    <input type="file" id="restoreFileInput" accept=".json">
-</div>
-
-<script>
-    // ============================================================
-    // 0. 注册 Service Worker（PWA 核心）
-    // ============================================================
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('✅ SW 注册成功'))
-            .catch(err => console.log('❌ SW 注册失败', err));
-    }
-
-    // ============================================================
-    // 1. 分类定义（不变）
-    // ============================================================
-    const CATEGORIES = {
-        income: ['工资', '奖金', '兼职', '理财收益', '红包收入', '退款'],
-        expense: {
-            '餐饮': ['早餐', '午餐', '晚餐', '夜宵', '外卖', '零食', '水果', '咖啡奶茶', '买菜做饭'],
-            '交通': ['公交地铁', '打车', '机票火车', '加油', '停车'],
-            '居住': ['房租', '水电', '燃气', '物业', '宽带', '家居用品'],
-            '网购': ['生活用品', '锻炼器具', '服饰鞋子', '零食副食', '数码配件'],
-            '医疗': ['看中医/中药调理', '西药', '门诊', '体检'],
-            '运动锻炼': ['游泳', '健身', '球类', '瑜伽'],
-            '娱乐': ['电影', '游戏', '旅行', '音乐', '棋牌'],
-            '通讯': ['话费', '流量', '短信'],
-            '教育': ['买书', '课程', '考试', '打印', '文具'],
-            '人情': ['随礼', '请客', '礼物', '红包', '聚会'],
-            '宠物': ['猫粮', '零食', '玩具', '驱虫', '洗澡'],
-            '美容': ['理发', '护肤', '化妆品', '美甲', '按摩'],
-            '其他杂项': ['快递', '办证', '维修', '杂费']
-        }
-    };
-
-    function getAllSubCategories(type) {
-        if (type === 'income') {
-            return CATEGORIES.income.map(c => ({ parent: '收入', child: c, full: c }));
-        }
-        const list = [];
-        for (const [parent, children] of Object.entries(CATEGORIES.expense)) {
-            children.forEach(child => {
-                list.push({ parent, child, full: `${parent}·${child}` });
-            });
-        }
-        return list;
-    }
-
-    // ============================================================
-    // 2. 数据存储（账单 + 预算 + 初始余额）
-    // ============================================================
-    const STORAGE_KEY = 'my_bills_data';
-    const BUDGET_KEY = 'my_budget_data';
-    const INITIAL_BALANCE_KEY = 'my_initial_balance';
-
-    function loadBills() {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try { return JSON.parse(stored); } catch { return []; }
-        }
-        return [];
-    }
-
-    function loadBudget() {
-        const stored = localStorage.getItem(BUDGET_KEY);
-        if (stored) {
-            try { return JSON.parse(stored); } catch { return {}; }
-        }
-        return {};
-    }
-
-    function loadInitialBalance() {
-        const stored = localStorage.getItem(INITIAL_BALANCE_KEY);
-        if (stored !== null) {
-            const val = parseFloat(stored);
-            return isNaN(val) ? 0 : val;
-        }
-        return 0;
-    }
-
-    let bills = loadBills();
-    let nextId = bills.length > 0 ? Math.max(...bills.map(b => b.id)) + 1 : 1;
-    let budgetData = loadBudget();
-    let initialBalance = loadInitialBalance();
-
-    function saveBills() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(bills));
-    }
-
-    function saveBudget() {
-        localStorage.setItem(BUDGET_KEY, JSON.stringify(budgetData));
-    }
-
-    function saveInitialBalance(val) {
-        localStorage.setItem(INITIAL_BALANCE_KEY, String(val));
-        initialBalance = val;
-    }
-
-    // 保存所有数据（用于备份）
-    function saveAllData() {
-        saveBills();
-        saveBudget();
-        saveInitialBalance(initialBalance);
-    }
-
-    // ============================================================
-    // 3. 备份 / 恢复功能（新增）
-    // ============================================================
-    // 导出备份（JSON）
-    document.getElementById('backupBtn').addEventListener('click', function() {
-        const data = {
-            bills: bills,
-            budget: budgetData,
-            initialBalance: initialBalance,
-            exportDate: new Date().toISOString()
-        };
-        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `记账备份_${getTodayStr().short}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    });
-
-    // 恢复备份（触发文件选择）
-    document.getElementById('restoreBtn').addEventListener('click', function() {
-        document.getElementById('restoreFileInput').click();
-    });
-
-    document.getElementById('restoreFileInput').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            try {
-                const data = JSON.parse(event.target.result);
-                if (!data.bills || !data.budget || data.initialBalance === undefined) {
-                    alert('无效的备份文件');
-                    return;
-                }
-                if (!confirm('⚠️ 恢复将覆盖当前所有数据，确定继续吗？')) return;
-                bills = data.bills;
-                budgetData = data.budget;
-                initialBalance = data.initialBalance;
-                nextId = bills.length > 0 ? Math.max(...bills.map(b => b.id)) + 1 : 1;
-                saveAllData();
-                renderAll();
-                alert('✅ 数据恢复成功！');
-            } catch (err) {
-                alert('❌ 文件解析失败，请检查文件格式');
-            }
-        };
-        reader.readAsText(file);
-        // 重置 input 以便重复选择同一文件
-        this.value = '';
-    });
-
-    // ============================================================
-    // 4. 安装应用按钮（Android PWA 提示）
-    // ============================================================
-    let deferredPrompt;
-    const installBtn = document.getElementById('installAppBtn');
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        installBtn.style.display = 'inline-block';
-    });
-
-    installBtn.addEventListener('click', async () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const result = await deferredPrompt.userChoice;
-            console.log('用户选择:', result.outcome);
-            deferredPrompt = null;
-            installBtn.style.display = 'none';
-        } else {
-            alert('您的浏览器不支持直接安装，请手动添加到主屏幕');
-        }
-    });
-
-    // 如果已经安装，隐藏按钮
-    window.addEventListener('appinstalled', () => {
-        installBtn.style.display = 'none';
-    });
-
-    // ============================================================
-    // 5. 状态与工具函数（不变）
-    // ============================================================
-    let currentMonth = getTodayStr().short.substring(0, 7);
-    let currentFilter = 'all';
-    let pickerYear = parseInt(currentMonth.split('-')[0]);
-    let statView = 'month';
-
-    function getTodayStr() {
-        const d = new Date();
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const wd = weekdays[d.getDay()];
-        return { year, month, day, wd, full: `${year}年${month}月${day}日（${wd}）`, short: `${year}-${month}-${day}` };
-    }
-
-    function formatMoney(val) { return '¥' + val.toFixed(2); }
-
-    function formatDateDisplay(dateStr) {
-        const parts = dateStr.split('-');
-        return `${parts[0]}年${parts[1]}月${parts[2]}日`;
-    }
-
-    function getMonthLabel(monthStr) {
-        const parts = monthStr.split('-');
-        return `${parts[0]}年${parts[1]}月`;
-    }
-
-    function getMonthBills(monthStr) {
-        return bills.filter(b => b.date.startsWith(monthStr));
-    }
-
-    function getMonthStats(monthStr) {
-        const mb = getMonthBills(monthStr);
-        let totalExpense = 0, totalIncome = 0;
-        mb.forEach(b => {
-            if (b.type === 'expense') totalExpense += b.amount;
-            else totalIncome += b.amount;
-        });
-        return { totalExpense, totalIncome, balance: initialBalance + totalIncome - totalExpense };
-    }
-
-    function getBudget(monthStr) {
-        return budgetData[monthStr] || 0;
-    }
-
-    function getFilteredBills() {
-        const monthBills = getMonthBills(currentMonth);
-        if (currentFilter === 'expense') return monthBills.filter(b => b.type === 'expense');
-        if (currentFilter === 'income') return monthBills.filter(b => b.type === 'income');
-        return monthBills;
-    }
-
-    // ============================================================
-    // 6. 图表实例（全局）
-    // ============================================================
-    let trendChartInstance = null;
-    let pieChartInstance = null;
-
-    // ============================================================
-    // 7. 渲染预算进度条
-    // ============================================================
-    function renderBudget(monthStr) {
-        const stats = getMonthStats(monthStr);
-        const budget = getBudget(monthStr);
-        const spent = stats.totalExpense;
-        const remaining = budget - spent;
-        const percent = budget > 0 ? Math.min((spent / budget) * 100, 100) : 0;
-
-        let statusClass = '';
-        let statusText = '';
-        if (budget === 0) {
-            statusText = '未设置预算';
-        } else if (spent > budget) {
-            statusClass = 'over-budget';
-            statusText = `超支 ${formatMoney(spent - budget)}`;
-        } else {
-            statusText = `剩余 ${formatMoney(remaining)}`;
-        }
-
-        let fillClass = '';
-        if (budget > 0) {
-            if (percent >= 100) fillClass = 'danger';
-            else if (percent >= 80) fillClass = 'warning';
-        }
-
-        const bar = document.getElementById('budgetBar');
-        if (bar) {
-            document.getElementById('budgetStatus').innerHTML = budget > 0 ?
-                `${formatMoney(spent)} / ${formatMoney(budget)} ${statusClass ? '🔴' : ''}` :
-                '未设置预算';
-            const fill = document.getElementById('budgetFill');
-            fill.style.width = percent + '%';
-            fill.className = 'fill' + (fillClass ? ' ' + fillClass : '');
-        }
-
-        const statBar = document.getElementById('statBudgetBar');
-        if (statBar) {
-            document.getElementById('statBudgetStatus').innerHTML = budget > 0 ?
-                `${formatMoney(spent)} / ${formatMoney(budget)} ${statusClass ? '🔴' : ''}` :
-                '未设置预算';
-            const fill = document.getElementById('statBudgetFill');
-            fill.style.width = percent + '%';
-            fill.className = 'fill' + (fillClass ? ' ' + fillClass : '');
-        }
-    }
-
-    // ============================================================
-    // 8. 主渲染
-    // ============================================================
-    function renderAll() {
-        const monthLabel = getMonthLabel(currentMonth);
-        const stats = getMonthStats(currentMonth);
-
-        document.getElementById('monthLabel').textContent = monthLabel;
-        document.getElementById('summaryMonthLabel').textContent = currentMonth.replace('-', '年') + '月';
-        document.getElementById('todayLabel').textContent = monthLabel;
-        document.getElementById('statMonthLabel').textContent = monthLabel;
-
-        document.getElementById('monthTotalExpense').textContent = formatMoney(stats.totalExpense);
-        document.getElementById('monthIncome').textContent = formatMoney(stats.totalIncome);
-
-        if (statView === 'month') {
-            document.getElementById('statExpense').textContent = formatMoney(stats.totalExpense);
-            document.getElementById('statIncome').textContent = formatMoney(stats.totalIncome);
-            document.getElementById('statBalance').textContent = formatMoney(stats.balance);
-        }
-
-        renderBudget(currentMonth);
-
-        // 账单列表
-        const container = document.getElementById('billListContainer');
-        const filtered = getFilteredBills();
-        const sorted = [...filtered].sort((a, b) => {
-            if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-            return b.id - a.id;
-        });
-
-        if (sorted.length === 0) {
-            const filterText = currentFilter === 'all' ? '' : currentFilter === 'expense' ? '支出' : '收入';
-            container.innerHTML = `<div class="empty-tip">✨ 本月暂无${filterText}记录<br><span style="font-size:13px;">点击右下角「记一笔」添加</span></div>`;
-        } else {
-            let html = `<div class="bill-list">`;
-            sorted.forEach(b => {
-                const isExpense = b.type === 'expense';
-                const sign = isExpense ? '-' : '+';
-                const cls = isExpense ? 'expense' : 'income';
-                const displayCat = b.sub ? `${b.category}·${b.sub}` : b.category;
-                const dateDisplay = formatDateDisplay(b.date);
-                html += `
-                    <div class="bill-item">
-                        <div class="bill-left">
-                            <div class="bill-icon">${isExpense ? '💸' : '💰'}</div>
-                            <div class="bill-info">
-                                <div class="cat">${displayCat}</div>
-                                <div class="note">${b.note || '无备注'} · ${dateDisplay}</div>
-                            </div>
-                        </div>
-                        <div class="bill-amount ${cls}">${sign}${b.amount.toFixed(2)}</div>
-                        <div class="bill-actions">
-                            <button class="bill-edit" data-id="${b.id}">📝</button>
-                            <button class="bill-delete" data-id="${b.id}">✕</button>
-                        </div>
+                <div class="balance-right">
+                    <div class="balance-stat">
+                        <span class="stat-label" id="balanceExpenseLabel">本月支出</span>
+                        <span class="stat-value expense" id="balanceExpense">¥0.00</span>
                     </div>
-                `;
+                    <div class="balance-stat">
+                        <span class="stat-label" id="balanceIncomeLabel">本月收入</span>
+                        <span class="stat-value income" id="balanceIncome">¥0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 周期切换器 -->
+            <div class="period-switcher">
+                <button id="switchMonth" class="active">📆 按月</button>
+                <button id="switchYear">📅 按年</button>
+            </div>
+
+            <!-- 月份切换行（按月时显示） -->
+            <div class="month-row" id="statsMonthRow">
+                <button id="statsPrevMonth">‹</button>
+                <span class="month" id="statsMonthLabel">2026年8月</span>
+                <button id="statsNextMonth">›</button>
+            </div>
+
+            <!-- 年份切换行（按年时显示） -->
+            <div class="month-row" id="statsYearRow" style="display:none;">
+                <button id="statsPrevYear">‹</button>
+                <span class="month" id="statsYearLabel">2026年</span>
+                <button id="statsNextYear">›</button>
+            </div>
+
+            <div class="chart-box">
+                <h3>🍩 支出分类占比</h3>
+                <canvas id="pieChart"></canvas>
+                <div class="empty-tip" id="pieEmpty" style="display:none;">当前周期暂无支出数据</div>
+            </div>
+
+            <!-- AI 助手 -->
+            <div class="ai-container">
+                <div class="ai-header">
+                    <span>🤖 AI 理财助手</span>
+                    <span class="ai-badge" id="aiBadge">本地免费</span>
+                </div>
+                <div class="ai-chat" id="aiChat"></div>
+                <div class="ai-quick-tasks">
+                    <button onclick="sendQuestion('全面分析我的消费')">🔍 全面分析</button>
+                    <button onclick="sendQuestion('给我省钱建议')">💡 省钱建议</button>
+                    <button onclick="sendQuestion('哪部分花得最多')">📊 超支分析</button>
+                    <button onclick="sendQuestion('我的备注透露了什么')">📝 备注透视</button>
+                </div>
+                <div class="ai-input-row">
+                    <input type="text" id="aiInput" placeholder="问我任何理财问题...">
+                    <button onclick="handleUserInput()">发送</button>
+                </div>
+                <div class="ai-footer-note">
+                    默认使用内置免费智能引擎
+                    <a id="aiSearchLink">🔗 联网搜索</a>
+                </div>
+            </div>
+        </div>
+
+        <button class="fab" id="addBillBtn">＋ 记一笔</button>
+    </div>
+
+    <!-- 记一笔弹窗 -->
+    <div class="modal-overlay" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header"><h3>✏️ 记一笔</h3><button class="modal-close" id="closeAddModal">✕</button></div>
+            <form id="billForm">
+                <div class="form-row">
+                    <div class="form-group"><label>类型</label><select id="inputType"><option value="expense">支出</option><option value="income">收入</option></select></div>
+                    <div class="form-group"><label>金额 (¥)</label><input type="number" id="inputAmount" placeholder="0.00" step="0.01" min="0" inputmode="decimal" required></div>
+                </div>
+                <div class="form-group"><label>分类</label><select id="inputCategory"></select></div>
+                <div class="form-group"><label>日期</label><input type="date" id="inputDate" required></div>
+                <div class="form-group"><label>备注（可选）</label><input type="text" id="inputNote" placeholder="例：打车去公司、买了猫粮等"></div>
+                <button type="submit" class="btn-save">✅ 保存</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 修改余额弹窗 -->
+    <div class="modal-overlay" id="balanceModal">
+        <div class="modal-content">
+            <div class="modal-header"><h3>✏️ 修改当前余额</h3><button class="modal-close" id="closeBalanceModal">✕</button></div>
+            <div class="form-group"><label>余额 (¥)</label><input type="number" id="balanceInput" placeholder="0.00" step="0.01" inputmode="decimal"></div>
+            <button class="btn-save" id="saveBalanceBtn">✅ 保存余额</button>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header"><h3>⚙️ AI 设置</h3><button class="modal-close" id="closeSettingsModal">✕</button></div>
+
+            <div class="form-group">
+                <label>选择 AI 引擎</label>
+                <select id="aiEngine">
+                    <option value="local" selected>本地免费智能（推荐）</option>
+                    <option value="deepseek">DeepSeek（需注册免费Key）</option>
+                    <option value="openai">OpenAI 兼容（付费或中转）</option>
+                </select>
+            </div>
+
+            <div id="deepseekSettings" style="display:none;">
+                <div class="form-group"><label>API Key (必填)</label><input type="password" id="deepseekKey" placeholder="sk-..."></div>
+                <div style="font-size:12px; color:#8fa39e; margin-bottom:8px;">注册地址：platform.deepseek.com，新用户有免费额度</div>
+            </div>
+
+            <div id="openaiSettings" style="display:none;">
+                <div class="form-group"><label>API Base URL</label><input type="text" id="openaiBase" placeholder="https://api.openai.com/v1/chat/completions"></div>
+                <div class="form-group"><label>API Key</label><input type="password" id="openaiKey" placeholder="sk-..."></div>
+                <div class="form-group"><label>模型名称</label><input type="text" id="openaiModel" placeholder="gpt-3.5-turbo"></div>
+            </div>
+
+            <button class="btn-save" id="saveSettingsBtn">✅ 保存设置</button>
+            <div style="font-size:12px; color:#8fa39e; margin-top:12px; line-height:1.6;">💡 默认本地智能完全免费、无需Key、不联网也能分析你的账单。</div>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // 分类定义
+        // ========================================
+        const EXPENSE_CATEGORIES = ['餐饮', '交通', '居住', '网购', '医疗', '运动锻炼', '美容', '娱乐', '通讯', '教育', '人情', '宠物', '其他'];
+        const INCOME_CATEGORIES = ['工资', '奖金', '兼职', '理财收益', '退款', '红包', '其他'];
+
+        // ========================================
+        // 种子数据
+        // ========================================
+        const SEED_DATA = {
+            balance: 1306.48,
+            currentMonth: '2026-08',
+            bills: [
+                { id: 1, type: "expense", category: "餐饮", amount: 8.05, note: "无备注", date: "2026-07-26" },
+                { id: 2, type: "expense", category: "交通", amount: 49.9, note: "31次小电驴。", date: "2026-07-26" },
+                { id: 3, type: "expense", category: "餐饮", amount: 22.8, note: "游完泳吃面包。", date: "2026-07-26" },
+                { id: 4, type: "expense", category: "餐饮", amount: 9.85, note: "买了几个鸡蛋面包。", date: "2026-07-26" },
+                { id: 5, type: "expense", category: "网购", amount: 71.02, note: "泳裤", date: "2026-07-27" },
+                { id: 6, type: "income", category: "退款", amount: 67.1, note: "上次泳裤不合身", date: "2026-07-28" },
+                { id: 7, type: "expense", category: "餐饮", amount: 14.8, note: "双皮奶", date: "2026-07-28" },
+                { id: 8, type: "expense", category: "餐饮", amount: 1.9, note: "面包", date: "2026-07-28" },
+                { id: 9, type: "expense", category: "通讯", amount: 5, note: "DeepSeekv4", date: "2026-07-29" },
+                { id: 10, type: "expense", category: "餐饮", amount: 30.33, note: "无备注", date: "2026-07-31" },
+                { id: 11, type: "expense", category: "网购", amount: 28.13, note: "泳帽", date: "2026-07-31" },
+                { id: 12, type: "expense", category: "医疗", amount: 96, note: "艾灸", date: "2026-08-01" },
+                { id: 13, type: "expense", category: "运动锻炼", amount: 400, note: "游泳", date: "2026-08-01" },
+                { id: 14, type: "expense", category: "医疗", amount: 114, note: "针灸", date: "2026-08-01" },
+                { id: 15, type: "expense", category: "美容", amount: 86, note: "推拿", date: "2026-08-01" },
+                { id: 16, type: "expense", category: "医疗", amount: 382.4, note: "无备注", date: "2026-08-01" },
+                { id: 17, type: "expense", category: "餐饮", amount: 59, note: "榴莲", date: "2026-08-01" }
+            ]
+        };
+
+        // ========================================
+        // 数据存取
+        // ========================================
+        const STORAGE_KEY = 'smart_bookkeeping_v2';
+        const SETTINGS_KEY = 'ai_settings_v2';
+
+        function loadData() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) { const parsed = JSON.parse(raw); if (parsed && parsed.bills !== undefined && typeof parsed.balance === 'number') return parsed; }
+            } catch (e) {}
+            return JSON.parse(JSON.stringify(SEED_DATA));
+        }
+        function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+        function loadSettings() {
+            try {
+                const raw = localStorage.getItem(SETTINGS_KEY);
+                if (raw) return JSON.parse(raw);
+            } catch (e) {}
+            return {
+                engine: 'local',
+                deepseekKey: '',
+                openaiBase: 'https://api.openai.com/v1/chat/completions',
+                openaiKey: '',
+                openaiModel: 'gpt-3.5-turbo'
+            };
+        }
+        function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(aiSettings)); }
+
+        let data = loadData();
+        let aiSettings = loadSettings();
+
+        // ========================================
+        // 状态变量
+        // ========================================
+        if (!data.currentMonth) data.currentMonth = getTodayMonth();
+        let currentMonth = data.currentMonth;
+        let currentYear = currentMonth.substring(0, 4);
+        let statsMode = 'month'; // 'month' 或 'year'
+
+        // ========================================
+        // 工具函数
+        // ========================================
+        function getTodayMonth() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+        function getTodayStr() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+        function formatMoney(val) { return '¥' + Number(val).toFixed(2); }
+        function getMonthLabel(monthStr) { const p = monthStr.split('-'); return p[0] + '年' + p[1] + '月'; }
+        function escapeHtml(str) { if (!str) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        function categoryIcon(cat) {
+            const icons = {'餐饮':'🍜','交通':'🚌','居住':'🏠','网购':'🛍️','医疗':'🏥','运动锻炼':'🏃','美容':'💄','娱乐':'🎮','通讯':'📱','教育':'📚','人情':'🎁','宠物':'🐱','其他':'📦','工资':'💼','奖金':'🧧','兼职':'💻','理财收益':'📈','退款':'↩️','红包':'🧧'};
+            return icons[cat] || '📌';
+        }
+
+        // 获取当前统计周期
+        function getStatsPeriod() {
+            if (statsMode === 'year') {
+                const y = currentYear;
+                return {
+                    type: 'year', value: y, label: y + '年',
+                    bills: data.bills.filter(b => b.date.startsWith(y + '-'))
+                };
+            } else {
+                const m = currentMonth;
+                return {
+                    type: 'month', value: m, label: getMonthLabel(m),
+                    bills: data.bills.filter(b => b.date.startsWith(m))
+                };
+            }
+        }
+
+        // ========================================
+        // 渲染
+        // ========================================
+        function render() {
+            // 账单视图
+            document.getElementById('monthLabel').textContent = getMonthLabel(currentMonth);
+            const monthBills = data.bills.filter(b => b.date.startsWith(currentMonth));
+            renderBillList(monthBills);
+
+            // 统计视图
+            renderStatsView();
+        }
+
+        function renderStatsView() {
+            const period = getStatsPeriod();
+
+            // 余额卡片
+            document.getElementById('balanceDisplay').textContent = formatMoney(data.balance);
+            let expense = 0, income = 0;
+            period.bills.forEach(b => { if (b.type === 'expense') expense += b.amount; else income += b.amount; });
+
+            const expenseLabel = (period.type === 'year') ? '本年支出' : '本月支出';
+            const incomeLabel = (period.type === 'year') ? '本年收入' : '本月收入';
+            document.getElementById('balanceExpenseLabel').textContent = expenseLabel;
+            document.getElementById('balanceIncomeLabel').textContent = incomeLabel;
+            document.getElementById('balanceExpense').textContent = formatMoney(expense);
+            document.getElementById('balanceIncome').textContent = formatMoney(income);
+
+            // 周期切换按钮状态
+            document.getElementById('switchMonth').classList.toggle('active', statsMode === 'month');
+            document.getElementById('switchYear').classList.toggle('active', statsMode === 'year');
+
+            // 月/年切换行
+            document.getElementById('statsMonthRow').style.display = (statsMode === 'month') ? 'flex' : 'none';
+            document.getElementById('statsYearRow').style.display = (statsMode === 'year') ? 'flex' : 'none';
+
+            if (statsMode === 'month') {
+                document.getElementById('statsMonthLabel').textContent = getMonthLabel(currentMonth);
+            } else {
+                document.getElementById('statsYearLabel').textContent = currentYear + '年';
+            }
+
+            // 图表
+            renderStats(period.bills);
+        }
+
+        function renderBillList(monthBills) {
+            const container = document.getElementById('billListContainer');
+            const list = [...monthBills].sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+            if (list.length === 0) { container.innerHTML = `<div class="empty-tip">✨ 本月暂无记录<br><span style="font-size:13px;">点下方「记一笔」开始记账</span></div>`; return; }
+            let html = '<div class="bill-list">';
+            list.forEach(b => {
+                const cls = b.type === 'expense' ? 'expense' : 'income';
+                const sign = b.type === 'expense' ? '-' : '+';
+                const note = (b.note && b.note !== '无备注') ? ' · ' + escapeHtml(b.note) : '';
+                html += `<div class="bill-item"><div class="bill-icon">${categoryIcon(b.category)}</div><div class="bill-info"><div class="bill-cat">${escapeHtml(b.category)}</div><div class="bill-sub">${b.date}${note}</div></div><div class="bill-amount ${cls}">${sign}${Number(b.amount).toFixed(2)}</div></div>`;
             });
-            html += `</div>`;
+            html += '</div>';
             container.innerHTML = html;
+        }
 
-            document.querySelectorAll('.bill-edit').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const id = parseInt(this.dataset.id);
-                    editBill(id);
+        // ========================================
+        // 图表
+        // ========================================
+        let pieChart = null;
+        function renderStats(bills) {
+            const categoryMap = {};
+            let totalExpense = 0;
+            bills.forEach(b => { if (b.type === 'expense') { categoryMap[b.category] = (categoryMap[b.category]||0) + b.amount; totalExpense += b.amount; } });
+
+            const ctx = document.getElementById('pieChart');
+            const emptyTip = document.getElementById('pieEmpty');
+            if (pieChart) { pieChart.destroy(); pieChart = null; }
+            if (totalExpense === 0) { ctx.style.display = 'none'; emptyTip.style.display = 'block'; }
+            else {
+                ctx.style.display = 'block'; emptyTip.style.display = 'none';
+                const labels = Object.keys(categoryMap);
+                const values = labels.map(l => Math.round(categoryMap[l] * 100) / 100);
+                const colors = ['#4a9e8a','#e6b85c','#d95b5b','#6bb5a0','#8cccb8','#e88b8b','#7a9e8a','#aad0c0','#c0a050','#5a9eb0','#b07a9e','#7a7a9e','#9e9e7a'];
+                pieChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { labels, datasets: [{ data: values, backgroundColor: colors.slice(0, labels.length), borderWidth: 2, borderColor: '#fff' }] },
+                    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 14, padding: 8 } }, tooltip: { callbacks: { label: function(c) { const total = c.dataset.data.reduce((a,b)=>a+b,0); const pct = ((c.parsed / total) * 100).toFixed(1); return ` ${c.label}: ¥${c.parsed} (${pct}%)`; } } } } }
                 });
-            });
-            document.querySelectorAll('.bill-delete').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const id = parseInt(this.dataset.id);
-                    deleteBill(id);
+            }
+        }
+
+        // ========================================
+        // 本地智能引擎
+        // ========================================
+        function getPeriodAnalysis() {
+            const period = getStatsPeriod();
+            const expenseBills = period.bills.filter(b => b.type === 'expense');
+            const incomeBills = period.bills.filter(b => b.type === 'income');
+            let totalExpense = 0, totalIncome = 0;
+            let categoryMap = {};
+            let noteList = [];
+            expenseBills.forEach(b => { totalExpense += b.amount; categoryMap[b.category] = (categoryMap[b.category]||0) + b.amount; if (b.note && b.note !== '无备注') noteList.push({ amount: b.amount, cat: b.category, note: b.note, date: b.date }); });
+            incomeBills.forEach(b => totalIncome += b.amount);
+            return { period, expenseBills, incomeBills, totalExpense, totalIncome, categoryMap, noteList, balance: data.balance };
+        }
+
+        function localAI(userInput) {
+            const a = getPeriodAnalysis();
+            if (a.expenseBills.length === 0 && a.incomeBills.length === 0) return "当前周期还没有记录。先记几笔，我就能帮你分析消费模式。";
+            if (a.totalExpense === 0 && a.totalIncome > 0) return "🎉 这个周期只进不出！先确认是否漏记支出。";
+            const advice = [];
+            const periodLabel = a.period.label;
+
+            if (userInput.includes('全面') || userInput.includes('分析') || userInput.includes('总')) {
+                advice.push(`📊 **消费分析报告**\n📅 ${periodLabel}\n💰 总支出：${formatMoney(a.totalExpense)}\n💵 总收入：${formatMoney(a.totalIncome)}\n📝 共 ${a.expenseBills.length} 笔支出，${a.incomeBills.length} 笔收入\n`);
+                let maxCat = '', maxAmount = 0;
+                for (const [cat, amount] of Object.entries(a.categoryMap)) { if (amount > maxAmount) { maxAmount = amount; maxCat = cat; } }
+                if (maxCat) { const pct = (maxAmount / a.totalExpense * 100).toFixed(1); advice.push(`🔍 最大支出类别：**${maxCat}** (${formatMoney(maxAmount)}, ${pct}%)`); }
+                const sorted = Object.entries(a.categoryMap).sort((x,y)=>y[1]-x[1]);
+                advice.push("\n📋 分类明细：");
+                sorted.forEach(([cat, amount]) => { const pct = (amount / a.totalExpense * 100).toFixed(1); advice.push(`   ${categoryIcon(cat)} ${cat}：${formatMoney(amount)} (${pct}%)`); });
+                advice.push("\n💡 我还能问“省钱建议”或“哪部分花得多”。");
+            }
+
+            if (userInput.includes('省') || userInput.includes('存') || userInput.includes('建议')) {
+                advice.push("💡 **省钱建议**\n");
+                const foodAmount = a.categoryMap['餐饮'] || 0;
+                const foodPct = foodAmount / a.totalExpense * 100;
+                if (foodPct > 40) {
+                    advice.push(`🍚 餐饮占比 ${foodPct.toFixed(1)}%，偏高。尝试：\n   • 每周至少3次自己做饭带便当\n   • 减少奶茶、咖啡、零食外卖`);
+                    if (a.noteList.some(n => n.note.includes('面包') || n.note.includes('双皮奶') || n.note.includes('零食'))) advice.push(`   • 备注里多次出现零食/面包，建议购物前列清单`);
+                } else if (foodPct > 30) advice.push(`🍚 餐饮占比 ${foodPct.toFixed(1)}%，在合理范围内。想更省：多吃食堂或带饭即可。`);
+                else advice.push(`🍚 餐饮控制得很好（${foodPct.toFixed(1)}%）`);
+                const trafficAmount = a.categoryMap['交通'] || 0;
+                if ((trafficAmount / a.totalExpense * 100) > 15) advice.push(`🚌 交通占比 ${(trafficAmount / a.totalExpense * 100).toFixed(1)}%（${formatMoney(trafficAmount)}），建议：\n   • 短途用共享单车替代打车\n   • 查询月卡/周卡更划算`);
+                const onlineAmount = a.categoryMap['网购'] || 0;
+                if (onlineAmount > 100) advice.push(`🛍️ 网购花了 ${formatMoney(onlineAmount)}，建议：\n   • 超过 ¥200 的网购等3天再买\n   • 删除购物App减少推送`);
+                const medicalAmount = a.categoryMap['医疗'] || 0;
+                if (medicalAmount > 200) advice.push(`🏥 医疗支出 ${formatMoney(medicalAmount)}，注意：\n   • 规律作息、适当锻炼，预防胜于治疗\n   • 医保报销记得走`);
+                if (a.balance < 500) advice.push(`⚠️ 余额仅 ${formatMoney(a.balance)}，请警惕开支。`);
+                if (a.totalIncome === 0) advice.push(`⚠️ 当前周期还没有收入记录，想办法开源：兼职、提升技能、开展副业。`);
+            }
+
+            if (userInput.includes('最多') || userInput.includes('超支') || userInput.includes('过大') || userInput.includes('太多')) {
+                advice.push("📊 **支出排行分析**\n");
+                const sorted = Object.entries(a.categoryMap).sort((x,y)=>y[1]-x[1]);
+                if (sorted.length === 0) advice.push("当前周期没有支出记录。");
+                else {
+                    sorted.slice(0,3).forEach(([cat, amount], idx) => { const pct = (amount / a.totalExpense * 100).toFixed(1); const rank = ['🥇','🥈','🥉'][idx] || '▪️'; advice.push(`${rank} ${cat}：${formatMoney(amount)} (${pct}%)`); });
+                    const [topCat, topAmount] = sorted[0];
+                    advice.push(`\n📌 榜首「${topCat}」花了 ${formatMoney(topAmount)}。`);
+                    const tips = { '餐饮': ['少点外卖、少喝奶茶', '带便当、吃食堂', '列好购物清单再买菜'], '交通': ['多坐公交/地铁', '拼车或骑单车'], '网购': ['冷静24小时再付款', '删除购物App'], '医疗': ['规律作息，早睡早起', '多运动，提高免疫力'], '运动锻炼': ['选性价比高的健身房', '试试免费户外运动'], '美容': ['减少按摩频率', '自己做基础护肤'], '娱乐': ['用免费活动替代', '控制娱乐预算'], '其他': ['逐笔记账找到漏点', '砍掉非必需消费'] };
+                    const tipList = tips[topCat];
+                    if (tipList) { advice.push(`建议：`); tipList.forEach(t => advice.push(`   • ${t}`)); }
+                }
+            }
+
+            if (userInput.includes('备注') || userInput.includes('透视')) {
+                advice.push("📝 **备注智能洞察**\n");
+                if (a.noteList.length === 0) advice.push("当前周期还没有备注。以后记账时写一句备注，例如“打车去公司”、“买了猫粮”，我就能说出你的消费习惯。");
+                else {
+                    const keywords = { '打车': ['滴滴','出租','打车','快车'], '外卖': ['外卖','饿了么','美团'], '咖啡奶茶': ['咖啡','奶茶','星巴克','瑞幸'], '网购': ['淘宝','京东','拼多多','天猫'], '游泳': ['游泳','泳裤','泳帽'], '医疗': ['中医','针灸','艾灸','推拿','中药','医生'], '零食': ['面包','零食','双皮奶','蛋糕','饼干'], '水果': ['榴莲','水果','苹果','香蕉'] };
+                    const found = {};
+                    a.noteList.forEach(n => { for (const [label, kws] of Object.entries(keywords)) { if (kws.some(k => n.note.includes(k))) found[label] = (found[label] || 0) + n.amount; } });
+                    for (const [label, amount] of Object.entries(found)) advice.push(`📍 「${label}」相关消费：${formatMoney(amount)}`);
+                    advice.push("\n📌 建议：");
+                    if (found['打车']) advice.push("   • 打车支出较多，试一试地铁+共享单车组合");
+                    if (found['外卖']) advice.push("   • 外卖费用不低，自己做饭更省钱也更健康");
+                    if (found['咖啡奶茶']) advice.push("   • 咖啡/奶茶是“拿铁因子”，每天 ¥20，一个月就是 ¥600");
+                    if (found['网购']) advice.push("   • 网购较多，建立 24 小时冷静期再下单");
+                    if (found['零食']) advice.push("   • 零食面包等小额消费，积少成多，设定零食预算");
+                    if (found['水果']) advice.push("   • 水果消费偏高，可以等季购或选择平价替代");
+                    if (found['医疗']) advice.push("   • 注意身体！规律作息和适度运动能减少医疗开支");
+                    if (Object.keys(found).length === 0) advice.push("没有识别到明显的高频关键词。继续记账并写好备注，洞察会更准确。");
+                }
+            }
+
+            if (advice.length === 0) advice.push("📋 我可以帮你：\n   • “全面分析我的消费”\n   • “给我省钱建议”\n   • “哪部分花得最多”\n   • “我的备注透露了什么”\n你也可以直接问我问题，例如“我是不是餐饮花太多了？”");
+            return advice.join('\n');
+        }
+
+        // ========================================
+        // AI 对话
+        // ========================================
+        function addMessage(role, text) {
+            const chat = document.getElementById('aiChat');
+            const msg = document.createElement('div');
+            msg.className = 'msg ' + role;
+            msg.textContent = text;
+            chat.appendChild(msg);
+            chat.scrollTop = chat.scrollHeight;
+        }
+        function showThinking() {
+            const chat = document.getElementById('aiChat');
+            const msg = document.createElement('div');
+            msg.className = 'msg thinking'; msg.id = 'thinkingMsg'; msg.textContent = '🤔 正在分析中...';
+            chat.appendChild(msg); chat.scrollTop = chat.scrollHeight;
+        }
+        function removeThinking() { const el = document.getElementById('thinkingMsg'); if (el) el.remove(); }
+
+        async function handleUserInput() {
+            const input = document.getElementById('aiInput');
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            await sendQuestion(text);
+        }
+
+        async function sendQuestion(question) {
+            if (!question.trim()) return;
+            addMessage('user', question);
+            showThinking();
+
+            let answer = null;
+            if (aiSettings.engine !== 'local') {
+                answer = await callOnlineAI(question);
+            }
+            if (!answer) {
+                setTimeout(() => { removeThinking(); addMessage('ai', localAI(question)); }, 300);
+            } else {
+                removeThinking(); addMessage('ai', answer);
+            }
+        }
+
+        async function callOnlineAI(question) {
+            try {
+                let apiBase, apiKey, apiModel;
+                if (aiSettings.engine === 'deepseek') {
+                    apiBase = 'https://api.deepseek.com/v1/chat/completions';
+                    apiKey = aiSettings.deepseekKey;
+                    apiModel = 'deepseek-chat';
+                } else {
+                    apiBase = aiSettings.openaiBase;
+                    apiKey = aiSettings.openaiKey;
+                    apiModel = aiSettings.openaiModel;
+                }
+                if (!apiKey) return null;
+                const messages = [{ role: 'system', content: '你是一位个人理财顾问。请根据以下消费数据给出针对性建议：\n' + getContextForAI() }, { role: 'user', content: question }];
+                const response = await fetch(apiBase, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+                    body: JSON.stringify({ model: apiModel, messages, temperature: 0.7 })
                 });
-            });
+                if (!response.ok) return null;
+                const json = await response.json();
+                return json.choices[0].message.content;
+            } catch (e) { return null; }
         }
 
-        // 分类展示
-        const demoContainer = document.getElementById('categoryDemoContainer');
-        let html = `<span class="tag-title">📥 收入：</span>`;
-        CATEGORIES.income.forEach(c => html += `<span class="tag">${c}</span>`);
-        html += `<br><span class="tag-title" style="margin-top:4px;display:inline-block;">📤 支出：</span>`;
-        for (const [parent, children] of Object.entries(CATEGORIES.expense)) {
-            children.forEach(child => html += `<span class="tag">${parent}·${child}</span>`);
-        }
-        demoContainer.innerHTML = html;
-
-        updateCategorySelect();
-        updateCharts();
-        updateFilterTabs();
-        updateStatTabs();
-    }
-
-    // ============================================================
-    // 9. 图表更新（不变）
-    // ============================================================
-    function updateCharts() {
-        if (trendChartInstance) {
-            trendChartInstance.destroy();
-            trendChartInstance = null;
-        }
-        if (pieChartInstance) {
-            pieChartInstance.destroy();
-            pieChartInstance = null;
+        function getContextForAI() {
+            const a = getPeriodAnalysis();
+            let context = `当前周期：${a.period.label}\n当前余额：¥${data.balance}\n`;
+            context += `支出去分类：\n`;
+            for (const [cat, amount] of Object.entries(a.categoryMap)) context += `- ${cat}: ¥${amount}\n`;
+            context += `\n收入分类：\n`;
+            a.incomeBills.forEach(b => context += `- ${b.category}: ¥${b.amount}\n`);
+            context += `\n备注明细：\n`;
+            a.noteList.forEach(n => context += `- ${n.date} ${n.cat} ¥${n.amount} 备注:${n.note}\n`);
+            return context;
         }
 
-        const trendContainer = document.getElementById('trendContainer');
-        const trendTitle = trendContainer.querySelector('h4')?.textContent || '📈 每日支出趋势';
-        trendContainer.innerHTML = `<h4 id="trendTitle">${trendTitle}</h4><canvas id="trendChart"></canvas>`;
-
-        const pieContainer = document.getElementById('pieContainer');
-        const pieTitle = pieContainer.querySelector('h4')?.textContent || '🍩 支出分类构成';
-        pieContainer.innerHTML = `<h4 id="pieTitle">${pieTitle}</h4><canvas id="pieChart"></canvas>`;
-
-        if (statView === 'month') {
-            updateMonthlyCharts();
-        } else {
-            updateYearlyCharts();
-        }
-    }
-
-    function updateMonthlyCharts() {
-        const monthBills = bills.filter(b => b.date.startsWith(currentMonth) && b.type === 'expense');
-
-        const dailyMap = {};
-        const [year, month] = currentMonth.split('-');
-        const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
-        for (let d = 1; d <= daysInMonth; d++) {
-            const key = `${year}-${month}-${String(d).padStart(2,'0')}`;
-            dailyMap[key] = 0;
-        }
-        monthBills.forEach(b => {
-            if (dailyMap[b.date] !== undefined) dailyMap[b.date] += b.amount;
-        });
-        const sortedDates = Object.keys(dailyMap).sort();
-        const labels = sortedDates.map(d => d.substring(5));
-        const data = sortedDates.map(d => dailyMap[d]);
-
-        const trendTitle = document.getElementById('trendTitle');
-        trendTitle.textContent = '📈 每日支出趋势';
-
-        const trendCtx = document.getElementById('trendChart').getContext('2d');
-        if (labels.length > 0 && data.some(v => v > 0)) {
-            trendChartInstance = new Chart(trendCtx, {
-                type: 'line',
-                data: { labels, datasets: [{ label: '日支出 (¥)', data, borderColor: '#4a9e8a', backgroundColor: 'rgba(74,158,138,0.1)', tension: 0.3, fill: true, pointBackgroundColor: '#4a9e8a', pointRadius: 3 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { color: '#eaf0ee' } }, x: { grid: { display: false }, ticks: { maxTicksLimit: 15, font: { size: 10 } } } }
-                }
-            });
-        } else {
-            trendCtx.canvas.parentNode.innerHTML += `<div class="no-data-msg">本月暂无支出数据</div>`;
+        function initAI() {
+            const chat = document.getElementById('aiChat');
+            chat.innerHTML = '';
+            addMessage('ai', `👋 你好！我是你的 AI 理财助手。\n\n我可以根据你的账单和备注，给你个性化的消费分析与省钱建议。\n\n试试点击下面的快捷按钮，或直接问我问题～`);
+            updateAIBadge();
         }
 
-        const categoryMap = {};
-        monthBills.forEach(b => {
-            const cat = b.category;
-            categoryMap[cat] = (categoryMap[cat] || 0) + b.amount;
-        });
-        const pieLabels = Object.keys(categoryMap);
-        const pieData = Object.values(categoryMap);
-        const pieColors = ['#4a9e8a','#6bb5a0','#2d7a6a','#8cccb8','#1d5f50','#aad0c0','#50b09a','#c0ddd0','#3a8a78','#70bca8','#95cdbc','#5ab09a','#80c4b2'];
-
-        const pieTitle = document.getElementById('pieTitle');
-        pieTitle.textContent = '🍩 支出分类构成';
-
-        const pieCtx = document.getElementById('pieChart').getContext('2d');
-        if (pieLabels.length > 0 && pieData.some(v => v > 0)) {
-            pieChartInstance = new Chart(pieCtx, {
-                type: 'doughnut',
-                data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors.slice(0, pieLabels.length), borderWidth: 2, borderColor: '#ffffff' }] },
-                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } } } }
-            });
-        } else {
-            pieCtx.canvas.parentNode.innerHTML += `<div class="no-data-msg">本月暂无分类数据</div>`;
-        }
-    }
-
-    function updateYearlyCharts() {
-        const year = currentMonth.split('-')[0];
-        const yearBills = bills.filter(b => b.date.startsWith(year) && b.type === 'expense');
-
-        const monthlyMap = {};
-        for (let m = 1; m <= 12; m++) {
-            const key = `${year}-${String(m).padStart(2,'0')}`;
-            monthlyMap[key] = 0;
-        }
-        yearBills.forEach(b => {
-            if (monthlyMap[b.date.substring(0, 7)] !== undefined) {
-                monthlyMap[b.date.substring(0, 7)] += b.amount;
-            }
-        });
-        const labels = Object.keys(monthlyMap).sort();
-        const data = labels.map(k => monthlyMap[k]);
-        const displayLabels = labels.map(k => k.substring(5) + '月');
-
-        const trendTitle = document.getElementById('trendTitle');
-        trendTitle.textContent = `📈 ${year}年各月支出趋势`;
-
-        const trendCtx = document.getElementById('trendChart').getContext('2d');
-        if (displayLabels.length > 0 && data.some(v => v > 0)) {
-            trendChartInstance = new Chart(trendCtx, {
-                type: 'bar',
-                data: { labels: displayLabels, datasets: [{ label: '月支出 (¥)', data, backgroundColor: 'rgba(74,158,138,0.6)', borderColor: '#4a9e8a', borderWidth: 1 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true, grid: { color: '#eaf0ee' } }, x: { grid: { display: false }, ticks: { font: { size: 10 } } } }
-                }
-            });
-        } else {
-            trendCtx.canvas.parentNode.innerHTML += `<div class="no-data-msg">${year}年暂无支出数据</div>`;
-        }
-
-        const categoryMap = {};
-        yearBills.forEach(b => {
-            const cat = b.category;
-            categoryMap[cat] = (categoryMap[cat] || 0) + b.amount;
-        });
-        const pieLabels = Object.keys(categoryMap);
-        const pieData = Object.values(categoryMap);
-        const pieColors = ['#4a9e8a','#6bb5a0','#2d7a6a','#8cccb8','#1d5f50','#aad0c0','#50b09a','#c0ddd0','#3a8a78','#70bca8','#95cdbc','#5ab09a','#80c4b2'];
-
-        const pieTitle = document.getElementById('pieTitle');
-        pieTitle.textContent = `🍩 ${year}年支出分类构成`;
-
-        const pieCtx = document.getElementById('pieChart').getContext('2d');
-        if (pieLabels.length > 0 && pieData.some(v => v > 0)) {
-            pieChartInstance = new Chart(pieCtx, {
-                type: 'doughnut',
-                data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors.slice(0, pieLabels.length), borderWidth: 2, borderColor: '#ffffff' }] },
-                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12, padding: 8 } } } }
-            });
-        } else {
-            pieCtx.canvas.parentNode.innerHTML += `<div class="no-data-msg">${year}年暂无分类数据</div>`;
-        }
-
-        const yearStats = getYearStats(year);
-        document.getElementById('statExpense').textContent = formatMoney(yearStats.totalExpense);
-        document.getElementById('statIncome').textContent = formatMoney(yearStats.totalIncome);
-        document.getElementById('statBalance').textContent = formatMoney(yearStats.balance);
-        document.getElementById('statMonthLabel').textContent = `${year}年`;
-    }
-
-    function getYearStats(year) {
-        const yb = bills.filter(b => b.date.startsWith(year));
-        let totalExpense = 0, totalIncome = 0;
-        yb.forEach(b => {
-            if (b.type === 'expense') totalExpense += b.amount;
-            else totalIncome += b.amount;
-        });
-        return { totalExpense, totalIncome, balance: initialBalance + totalIncome - totalExpense };
-    }
-
-    // ============================================================
-    // 10. 统计视图切换
-    // ============================================================
-    function updateStatTabs() {
-        document.querySelectorAll('#statViewTabs span').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.view === statView);
-        });
-    }
-
-    document.querySelectorAll('#statViewTabs span').forEach(tab => {
-        tab.addEventListener('click', function() {
-            statView = this.dataset.view;
-            if (statView === 'year') {
-                const year = currentMonth.split('-')[0];
-                document.getElementById('statMonthLabel').textContent = `${year}年`;
+        function updateAIBadge() {
+            const badge = document.getElementById('aiBadge');
+            if (aiSettings.engine === 'local') {
+                badge.textContent = '本地免费';
+                badge.style.background = '#4a9e8a';
+            } else if (aiSettings.engine === 'deepseek') {
+                badge.textContent = 'DeepSeek在线';
+                badge.style.background = '#6b5acd';
             } else {
-                document.getElementById('statMonthLabel').textContent = getMonthLabel(currentMonth);
+                badge.textContent = 'OpenAI';
+                badge.style.background = '#3a8a78';
             }
-            renderAll();
-        });
-    });
-
-    // ============================================================
-    // 11. 筛选标签
-    // ============================================================
-    function updateFilterTabs() {
-        document.querySelectorAll('.filter-tab').forEach(tab => {
-            tab.classList.toggle('active', tab.dataset.filter === currentFilter);
-        });
-    }
-
-    document.querySelectorAll('.filter-tab').forEach(tab => {
-        tab.addEventListener('click', function() {
-            currentFilter = this.dataset.filter;
-            renderAll();
-        });
-    });
-
-    // ============================================================
-    // 12. 月份切换
-    // ============================================================
-    function changeMonth(delta) {
-        const [year, month] = currentMonth.split('-').map(Number);
-        let newYear = year, newMonth = month + delta;
-        if (newMonth > 12) { newMonth = 1; newYear++; }
-        if (newMonth < 1) { newMonth = 12; newYear--; }
-        currentMonth = `${newYear}-${String(newMonth).padStart(2, '0')}`;
-        if (statView === 'year') statView = 'month';
-        renderAll();
-    }
-
-    document.getElementById('prevMonthBtn').addEventListener('click', () => changeMonth(-1));
-    document.getElementById('nextMonthBtn').addEventListener('click', () => changeMonth(1));
-
-    document.getElementById('monthLabel').addEventListener('click', function() {
-        pickerYear = parseInt(currentMonth.split('-')[0]);
-        renderPicker();
-        document.getElementById('monthPickerOverlay').classList.add('show');
-    });
-
-    document.getElementById('monthPickerOverlay').addEventListener('click', function(e) {
-        if (e.target === this) this.classList.remove('show');
-    });
-
-    document.getElementById('pickerYearPrev').addEventListener('click', function() {
-        pickerYear--;
-        renderPicker();
-    });
-    document.getElementById('pickerYearNext').addEventListener('click', function() {
-        pickerYear++;
-        renderPicker();
-    });
-
-    function renderPicker() {
-        document.getElementById('pickerYearLabel').textContent = pickerYear;
-        const grid = document.getElementById('pickerGrid');
-        grid.innerHTML = '';
-        const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-        const current = currentMonth;
-        months.forEach((m, idx) => {
-            const btn = document.createElement('button');
-            btn.className = 'month-btn';
-            const monthStr = `${pickerYear}-${String(idx + 1).padStart(2, '0')}`;
-            btn.textContent = m;
-            if (monthStr === current) btn.classList.add('active');
-            btn.addEventListener('click', function() {
-                currentMonth = monthStr;
-                if (statView === 'year') statView = 'month';
-                document.getElementById('monthPickerOverlay').classList.remove('show');
-                renderAll();
-            });
-            grid.appendChild(btn);
-        });
-    }
-
-    // ============================================================
-    // 13. 预算管理
-    // ============================================================
-    document.getElementById('budgetSetBtn').addEventListener('click', function() {
-        document.getElementById('budgetMonthDisplay').value = getMonthLabel(currentMonth);
-        const currentBudget = getBudget(currentMonth);
-        document.getElementById('budgetAmountInput').value = currentBudget || '';
-        document.getElementById('budgetModal').classList.add('show');
-    });
-
-    document.getElementById('budgetModalClose').addEventListener('click', function() {
-        document.getElementById('budgetModal').classList.remove('show');
-    });
-    document.getElementById('budgetModal').addEventListener('click', function(e) {
-        if (e.target === this) this.classList.remove('show');
-    });
-
-    document.getElementById('budgetSaveBtn').addEventListener('click', function() {
-        const amount = parseFloat(document.getElementById('budgetAmountInput').value);
-        if (isNaN(amount) || amount < 0) {
-            alert('请输入有效的预算金额（≥0）');
-            return;
-        }
-        if (amount === 0) {
-            delete budgetData[currentMonth];
-        } else {
-            budgetData[currentMonth] = amount;
-        }
-        saveBudget();
-        document.getElementById('budgetModal').classList.remove('show');
-        renderAll();
-    });
-
-    document.getElementById('budgetClearBtn').addEventListener('click', function() {
-        if (getBudget(currentMonth) === 0) {
-            alert('当前月份未设置预算');
-            return;
-        }
-        if (confirm('确定要清除当前月份的预算吗？')) {
-            delete budgetData[currentMonth];
-            saveBudget();
-            renderAll();
-        }
-    });
-
-    // ============================================================
-    // 14. 重置数据
-    // ============================================================
-    document.getElementById('resetDataBtn').addEventListener('click', function() {
-        document.getElementById('resetBalanceInput').value = '';
-        document.getElementById('resetModal').classList.add('show');
-    });
-
-    document.getElementById('resetModalClose').addEventListener('click', function() {
-        document.getElementById('resetModal').classList.remove('show');
-    });
-    document.getElementById('resetModal').addEventListener('click', function(e) {
-        if (e.target === this) this.classList.remove('show');
-    });
-
-    document.getElementById('resetConfirmBtn').addEventListener('click', function() {
-        const balance = parseFloat(document.getElementById('resetBalanceInput').value);
-        if (isNaN(balance) || balance < 0) {
-            alert('请输入有效的当前余额（≥0）');
-            return;
-        }
-        if (!confirm('⚠️ 此操作将永久删除所有账单和预算，确定继续吗？')) return;
-
-        bills = [];
-        nextId = 1;
-        saveBills();
-        budgetData = {};
-        saveBudget();
-        saveInitialBalance(balance);
-        document.getElementById('resetModal').classList.remove('show');
-        currentMonth = getTodayStr().short.substring(0, 7);
-        if (statView === 'year') statView = 'month';
-        renderAll();
-        alert('✅ 数据已重置，当前余额设置为 ' + formatMoney(balance));
-    });
-
-    // ============================================================
-    // 15. 删除、编辑
-    // ============================================================
-    function deleteBill(id) {
-        if (!confirm('确定要删除这笔账单吗？')) return;
-        bills = bills.filter(b => b.id !== id);
-        saveBills();
-        renderAll();
-    }
-
-    let editId = null;
-
-    function editBill(id) {
-        const bill = bills.find(b => b.id === id);
-        if (!bill) return;
-        editId = id;
-
-        document.getElementById('inputType').value = bill.type;
-        updateCategorySelect();
-        const catFull = bill.sub ? `${bill.category}·${bill.sub}` : bill.category;
-        const select = document.getElementById('inputCategory');
-        select.value = catFull;
-        if (!select.value) select.selectedIndex = 0;
-
-        document.getElementById('inputAmount').value = bill.amount;
-        document.getElementById('inputDate').value = bill.date;
-        document.getElementById('inputNote').value = bill.note || '';
-        document.getElementById('modalTitle').textContent = '✏️ 编辑账单';
-        openModal();
-    }
-
-    function updateCategorySelect() {
-        const type = document.getElementById('inputType').value;
-        const select = document.getElementById('inputCategory');
-        const subs = getAllSubCategories(type);
-        select.innerHTML = '';
-        subs.forEach(item => {
-            const opt = document.createElement('option');
-            opt.value = item.full;
-            opt.textContent = item.full;
-            select.appendChild(opt);
-        });
-    }
-    document.getElementById('inputType').addEventListener('change', updateCategorySelect);
-
-    // ============================================================
-    // 16. 保存账单
-    // ============================================================
-    function saveBill() {
-        const type = document.getElementById('inputType').value;
-        const amount = parseFloat(document.getElementById('inputAmount').value);
-        const categoryFull = document.getElementById('inputCategory').value;
-        const note = document.getElementById('inputNote').value.trim() || '无备注';
-        const dateInput = document.getElementById('inputDate').value;
-
-        if (!amount || amount <= 0) { alert('请输入有效金额'); return; }
-        if (!dateInput) { alert('请选择日期'); return; }
-
-        let category = categoryFull, sub = '';
-        if (categoryFull.includes('·')) {
-            const parts = categoryFull.split('·');
-            category = parts[0];
-            sub = parts[1];
         }
 
-        if (editId !== null) {
-            const index = bills.findIndex(b => b.id === editId);
-            if (index !== -1) {
-                bills[index] = { ...bills[index], type, category, sub, amount, note, date: dateInput };
-            }
-        } else {
-            bills.push({ id: nextId++, type, category, sub, amount, note, date: dateInput });
+        // ========================================
+        // Tab
+        // ========================================
+        function switchView(view) {
+            const listView = document.getElementById('listView');
+            const statsView = document.getElementById('statsView');
+            const tabList = document.getElementById('tabList');
+            const tabStats = document.getElementById('tabStats');
+            if (view === 'stats') { statsView.classList.add('active'); listView.classList.remove('active'); tabStats.classList.add('active'); tabList.classList.remove('active'); }
+            else { listView.classList.add('active'); statsView.classList.remove('active'); tabList.classList.add('active'); tabStats.classList.remove('active'); }
+            render(); // 确保切换后数据最新
         }
+        document.getElementById('tabList').addEventListener('click', () => switchView('list'));
+        document.getElementById('tabStats').addEventListener('click', () => switchView('stats'));
 
-        saveBills();
-        const billMonth = dateInput.substring(0, 7);
-        if (billMonth !== currentMonth) {
-            currentMonth = billMonth;
-            if (statView === 'year') statView = 'month';
+        // ========================================
+        // 周期切换
+        // ========================================
+        function setStatsMode(mode) {
+            statsMode = mode;
+            render();
         }
-        renderAll();
-        closeModal();
-        switchPage('page-record');
-        editId = null;
-        document.getElementById('modalTitle').textContent = '✏️ 记一笔';
-        document.getElementById('inputAmount').value = '';
-        document.getElementById('inputNote').value = '';
-        const today = getTodayStr();
-        document.getElementById('inputDate').value = today.short;
-        document.getElementById('voiceBtn').textContent = '🎤 点击说话（自动识别分类）';
-        document.getElementById('voiceBtn').classList.remove('listening');
-    }
+        document.getElementById('switchMonth').addEventListener('click', () => setStatsMode('month'));
+        document.getElementById('switchYear').addEventListener('click', () => setStatsMode('year'));
 
-    // ============================================================
-    // 17. 弹窗控制
-    // ============================================================
-    function openModal() {
-        document.getElementById('modalOverlay').classList.add('show');
-        const dateInput = document.getElementById('inputDate');
-        if (!dateInput.value) { const today = getTodayStr(); dateInput.value = today.short; }
-    }
-    function closeModal() {
-        document.getElementById('modalOverlay').classList.remove('show');
-        editId = null;
-        document.getElementById('modalTitle').textContent = '✏️ 记一笔';
-        document.getElementById('voiceBtn').textContent = '🎤 点击说话（自动识别分类）';
-        document.getElementById('voiceBtn').classList.remove('listening');
-    }
-    document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
-    document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
-    document.getElementById('fabBtn').addEventListener('click', function() {
-        editId = null;
-        document.getElementById('modalTitle').textContent = '✏️ 记一笔';
-        document.getElementById('inputType').value = 'expense';
-        updateCategorySelect();
-        document.getElementById('inputAmount').value = '';
-        const today = getTodayStr();
-        document.getElementById('inputDate').value = today.short;
-        document.getElementById('inputNote').value = '';
-        openModal();
-    });
-    document.getElementById('saveBtn').addEventListener('click', saveBill);
-
-    // ============================================================
-    // 18. 语音识别
-    // ============================================================
-    document.getElementById('voiceBtn').addEventListener('click', function() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert('您的浏览器不支持语音识别，请使用最新版 Chrome 或 Edge。');
-            return;
-        }
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'zh-CN';
-        recognition.continuous = false;
-        recognition.interimResults = false;
-
-        this.textContent = '🎤 正在听... 请说话';
-        this.classList.add('listening');
-
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            this.textContent = '🎤 识别完成: ' + transcript;
-            this.classList.remove('listening');
-            parseVoiceCommand(transcript);
-        };
-
-        recognition.onerror = () => {
-            this.textContent = '🎤 点击说话（自动识别分类）';
-            this.classList.remove('listening');
-            alert('语音识别出错，请手动输入。');
-        };
-
-        recognition.onend = () => {
-            if (this.classList.contains('listening')) {
-                this.textContent = '🎤 点击说话（自动识别分类）';
-                this.classList.remove('listening');
-            }
-        };
-
-        recognition.start();
-    });
-
-    function parseVoiceCommand(text) {
-        const numbers = text.match(/\d+(\.\d+)?/g);
-        let amount = numbers ? parseFloat(numbers[numbers.length - 1]) : 0;
-        let matchedCategory = null, matchedType = 'expense';
-
-        for (const inc of CATEGORIES.income) {
-            if (text.includes(inc)) { matchedCategory = inc; matchedType = 'income'; break; }
-        }
-        if (!matchedCategory) {
-            if (text.includes('买菜') || text.includes('做饭') || text.includes('牛肉') || text.includes('猪肉') || text.includes('鸡肉') || text.includes('鱼肉') || text.includes('生鲜') || text.includes('超市')) {
-                matchedCategory = '餐饮·买菜做饭';
-                matchedType = 'expense';
+        // 统计视图内的月份切换
+        function changeStatsMonth(delta) {
+            const [year, month] = currentMonth.split('-').map(Number);
+            let newYear = year, newMonth = month + delta;
+            if (newMonth > 12) { newMonth = 1; newYear++; }
+            if (newMonth < 1) { newMonth = 12; newYear--; }
+            currentMonth = newYear + '-' + String(newMonth).padStart(2, '0');
+            currentYear = String(newYear);
+            data.currentMonth = currentMonth;
+            saveData();
+            // 若统计视图处于按年模式，同步年份
+            if (statsMode === 'year') {
+                // 年份不变，但月份变化不影响年份模式，保持原年份
             } else {
-                for (const [parent, children] of Object.entries(CATEGORIES.expense)) {
-                    for (const child of children) {
-                        if (text.includes(child) || text.includes(parent)) {
-                            matchedCategory = parent + '·' + child;
-                            matchedType = 'expense';
-                            break;
-                        }
-                    }
-                    if (matchedCategory) break;
-                }
+                render();
             }
         }
-        if (!matchedCategory) { matchedCategory = '餐饮·午餐'; matchedType = 'expense'; }
+        document.getElementById('statsPrevMonth').addEventListener('click', () => changeStatsMonth(-1));
+        document.getElementById('statsNextMonth').addEventListener('click', () => changeStatsMonth(1));
 
-        document.getElementById('inputType').value = matchedType;
-        updateCategorySelect();
-        const select = document.getElementById('inputCategory');
-        select.value = matchedCategory;
-        if (!select.value) select.selectedIndex = 0;
-        if (amount > 0) document.getElementById('inputAmount').value = amount;
-        document.getElementById('inputNote').value = text;
-        const dateInput = document.getElementById('inputDate');
-        if (!dateInput.value) { const today = getTodayStr(); dateInput.value = today.short; }
-        openModal();
-    }
-
-    // ============================================================
-    // 19. CSV导出
-    // ============================================================
-    document.getElementById('exportCsvBtn').addEventListener('click', function() {
-        if (bills.length === 0) {
-            alert('暂无账单数据可导出');
-            return;
+        // 统计视图内的年份切换
+        function changeStatsYear(delta) {
+            let y = parseInt(currentYear) + delta;
+            currentYear = String(y);
+            const m = currentMonth.split('-')[1] || '01';
+            currentMonth = currentYear + '-' + m;
+            data.currentMonth = currentMonth;
+            saveData();
+            render();
         }
-        let csv = '\uFEFF';
-        csv += '日期,类型,分类,子分类,金额,备注\n';
-        bills.forEach(b => {
-            const typeLabel = b.type === 'expense' ? '支出' : '收入';
-            const sub = b.sub || '';
-            const note = b.note || '无备注';
-            csv += `${b.date},${typeLabel},${b.category},${sub},${b.amount.toFixed(2)},${note}\n`;
+        document.getElementById('statsPrevYear').addEventListener('click', () => changeStatsYear(-1));
+        document.getElementById('statsNextYear').addEventListener('click', () => changeStatsYear(1));
+
+        // 账单视图内的月份切换（与原逻辑一致）
+        function changeMonth(delta) {
+            const [year, month] = currentMonth.split('-').map(Number);
+            let newYear = year, newMonth = month + delta;
+            if (newMonth > 12) { newMonth = 1; newYear++; }
+            if (newMonth < 1) { newMonth = 12; newYear--; }
+            currentMonth = newYear + '-' + String(newMonth).padStart(2, '0');
+            currentYear = String(newYear);
+            data.currentMonth = currentMonth;
+            saveData(); render();
+        }
+        document.getElementById('prevMonth').addEventListener('click', () => changeMonth(-1));
+        document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
+
+        // ========================================
+        // 记一笔
+        // ========================================
+        function updateCategorySelect() {
+            const type = document.getElementById('inputType').value;
+            const select = document.getElementById('inputCategory');
+            const list = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+            select.innerHTML = '';
+            list.forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; select.appendChild(opt); });
+        }
+        function openAddModal() {
+            document.getElementById('billForm').reset();
+            document.getElementById('inputType').value = 'expense';
+            updateCategorySelect();
+            document.getElementById('inputDate').value = getTodayStr();
+            document.getElementById('inputNote').value = '';
+            document.getElementById('addModal').classList.add('show');
+        }
+        function closeAddModal() { document.getElementById('addModal').classList.remove('show'); }
+        document.getElementById('addBillBtn').addEventListener('click', openAddModal);
+        document.getElementById('closeAddModal').addEventListener('click', closeAddModal);
+        document.getElementById('addModal').addEventListener('click', function(e) { if (e.target === this) closeAddModal(); });
+        document.getElementById('inputType').addEventListener('change', updateCategorySelect);
+        document.getElementById('billForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const type = document.getElementById('inputType').value;
+            const amount = parseFloat(document.getElementById('inputAmount').value);
+            const category = document.getElementById('inputCategory').value;
+            const date = document.getElementById('inputDate').value;
+            const note = document.getElementById('inputNote').value.trim() || '无备注';
+            if (!amount || amount <= 0) { alert('请输入有效金额'); return; }
+            if (!category) { alert('请选择分类'); return; }
+            if (!date) { alert('请选择日期'); return; }
+            const id = data.bills.length > 0 ? Math.max(...data.bills.map(b => b.id)) + 1 : 1;
+            data.bills.push({ id, type, category, amount: Math.round(amount * 100) / 100, date, note });
+            if (type === 'expense') data.balance = Math.round((data.balance - amount) * 100) / 100;
+            else data.balance = Math.round((data.balance + amount) * 100) / 100;
+            currentMonth = date.substring(0, 7);
+            currentYear = currentMonth.substring(0, 4);
+            data.currentMonth = currentMonth;
+            saveData(); closeAddModal(); render(); switchView('list');
         });
 
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        const today = getTodayStr();
-        link.setAttribute('href', url);
-        link.setAttribute('download', `记账导出_${today.short}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    });
+        // ========================================
+        // 修改余额
+        // ========================================
+        function openBalanceModal() { document.getElementById('balanceInput').value = Number(data.balance).toFixed(2); document.getElementById('balanceModal').classList.add('show'); }
+        function closeBalanceModal() { document.getElementById('balanceModal').classList.remove('show'); }
+        document.getElementById('editBalanceBtn').addEventListener('click', openBalanceModal);
+        document.getElementById('closeBalanceModal').addEventListener('click', closeBalanceModal);
+        document.getElementById('balanceModal').addEventListener('click', function(e) { if (e.target === this) closeBalanceModal(); });
+        document.getElementById('saveBalanceBtn').addEventListener('click', function() {
+            const val = parseFloat(document.getElementById('balanceInput').value);
+            if (isNaN(val)) { alert('请输入有效金额'); return; }
+            data.balance = Math.round(val * 100) / 100;
+            saveData(); closeBalanceModal(); render();
+        });
 
-    // ============================================================
-    // 20. Tab切换
-    // ============================================================
-    function switchPage(pageId) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById(pageId).classList.add('active');
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        document.querySelector(`.nav-item[data-page="${pageId}"]`).classList.add('active');
-        if (pageId === 'page-stat') {
-            setTimeout(() => updateCharts(), 100);
+        // ========================================
+        // 导出
+        // ========================================
+        document.getElementById('exportBtn').addEventListener('click', function() {
+            const payload = { balance: data.balance, bills: data.bills, currentMonth: currentMonth, exportDate: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '记账备份_' + getTodayStr() + '.json';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        });
+
+        // ========================================
+        // 设置
+        // ========================================
+        function openSettings() {
+            document.getElementById('aiEngine').value = aiSettings.engine;
+            document.getElementById('deepseekKey').value = aiSettings.deepseekKey || '';
+            document.getElementById('openaiBase').value = aiSettings.openaiBase || 'https://api.openai.com/v1/chat/completions';
+            document.getElementById('openaiKey').value = aiSettings.openaiKey || '';
+            document.getElementById('openaiModel').value = aiSettings.openaiModel || 'gpt-3.5-turbo';
+            toggleEngineFields();
+            document.getElementById('settingsModal').classList.add('show');
         }
-    }
-    document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.addEventListener('click', function() { switchPage(this.dataset.page); });
-    });
+        function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+        document.getElementById('settingsBtn').addEventListener('click', openSettings);
+        document.getElementById('closeSettingsModal').addEventListener('click', closeSettings);
+        document.getElementById('settingsModal').addEventListener('click', function(e) { if (e.target === this) closeSettings(); });
 
-    // ============================================================
-    // 21. 启动
-    // ============================================================
-    renderAll();
-</script>
+        function toggleEngineFields() {
+            const engine = document.getElementById('aiEngine').value;
+            document.getElementById('deepseekSettings').style.display = (engine === 'deepseek') ? 'block' : 'none';
+            document.getElementById('openaiSettings').style.display = (engine === 'openai') ? 'block' : 'none';
+        }
+        document.getElementById('aiEngine').addEventListener('change', toggleEngineFields);
+
+        document.getElementById('saveSettingsBtn').addEventListener('click', function() {
+            const engine = document.getElementById('aiEngine').value;
+            aiSettings.engine = engine;
+            aiSettings.deepseekKey = document.getElementById('deepseekKey').value.trim();
+            aiSettings.openaiBase = document.getElementById('openaiBase').value.trim();
+            aiSettings.openaiKey = document.getElementById('openaiKey').value.trim();
+            aiSettings.openaiModel = document.getElementById('openaiModel').value.trim();
+            saveSettings();
+            updateAIBadge();
+            closeSettings();
+            alert('✅ 设置已保存');
+        });
+
+        // 联网搜索链接
+        document.getElementById('aiSearchLink').addEventListener('click', function() {
+            const period = getStatsPeriod();
+            const query = period.label + '记账 省钱 理财建议';
+            window.open('https://www.bing.com/search?q=' + encodeURIComponent(query), '_blank');
+        });
+
+        // 键盘发送
+        document.getElementById('aiInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') handleUserInput(); });
+
+        // 启动
+        render();
+        initAI();
+    </script>
 </body>
 </html>
