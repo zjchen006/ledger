@@ -42,12 +42,16 @@
         .view { display: none; }
         .view.active { display: block; }
         .bill-list { display: flex; flex-direction: column; gap: 8px; }
-        .bill-item { display: flex; align-items: center; background: #fafcfb; border: 1px solid #eaf0ee; border-radius: 16px; padding: 12px 14px; }
+        .bill-item { display: flex; align-items: center; background: #fafcfb; border: 1px solid #eaf0ee; border-radius: 16px; padding: 12px 14px; cursor: pointer; transition: background .15s; }
+        .bill-item:hover { background: #f0f6f4; }
         .bill-icon { width: 38px; height: 38px; background: #eaf0ee; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; margin-right: 12px; }
         .bill-info { flex: 1; }
         .bill-cat { font-size: 15px; font-weight: 600; color: #2d3e3a; }
         .bill-sub { font-size: 12px; color: #8fa39e; }
+        .bill-right { display: flex; align-items: center; gap: 6px; }
         .bill-amount { font-weight: 700; font-size: 18px; }
+        .bill-delete { background: none; border: none; color: #c0c0c0; font-size: 14px; cursor: pointer; padding: 2px 6px; border-radius: 50%; line-height: 1; transition: all .15s; }
+        .bill-delete:hover { color: #d95b5b; background: #fdeaea; }
         .empty-tip { background: #f4f8f6; border: 1px dashed #d5deda; border-radius: 16px; padding: 32px 16px; text-align: center; color: #8fa39e; font-size: 14px; }
         .chart-box { background: #fafcfb; border: 1px solid #eaf0ee; border-radius: 18px; padding: 16px 14px; margin-bottom: 16px; }
         .chart-box h3 { font-size: 15px; color: #2d3e3a; margin-bottom: 12px; text-align: center; }
@@ -192,10 +196,10 @@
         <button class="fab" id="addBillBtn">＋ 记一笔</button>
     </div>
 
-    <!-- 记一笔弹窗 -->
+    <!-- 记一笔/编辑弹窗 -->
     <div class="modal-overlay" id="addModal">
         <div class="modal-content">
-            <div class="modal-header"><h3>✏️ 记一笔</h3><button class="modal-close" id="closeAddModal">✕</button></div>
+            <div class="modal-header"><h3 id="addModalTitle">✏️ 记一笔</h3><button class="modal-close" id="closeAddModal">✕</button></div>
             <form id="billForm">
                 <div class="form-row">
                     <div class="form-group"><label>类型</label><select id="inputType"><option value="expense">支出</option><option value="income">收入</option></select></div>
@@ -204,7 +208,7 @@
                 <div class="form-group"><label>分类</label><select id="inputCategory"></select></div>
                 <div class="form-group"><label>日期</label><input type="date" id="inputDate" required></div>
                 <div class="form-group"><label>备注（可选）</label><input type="text" id="inputNote" placeholder="例：打车去公司、买了猫粮等"></div>
-                <button type="submit" class="btn-save">✅ 保存</button>
+                <button type="submit" class="btn-save" id="saveBillBtn">✅ 保存</button>
             </form>
         </div>
     </div>
@@ -322,6 +326,7 @@
         let currentMonth = data.currentMonth;
         let currentYear = currentMonth.substring(0, 4);
         let statsMode = 'month'; // 'month' 或 'year'
+        let editingBillId = null; // 当前编辑的账单ID
 
         // ========================================
         // 工具函数
@@ -408,7 +413,14 @@
                 const cls = b.type === 'expense' ? 'expense' : 'income';
                 const sign = b.type === 'expense' ? '-' : '+';
                 const note = (b.note && b.note !== '无备注') ? ' · ' + escapeHtml(b.note) : '';
-                html += `<div class="bill-item"><div class="bill-icon">${categoryIcon(b.category)}</div><div class="bill-info"><div class="bill-cat">${escapeHtml(b.category)}</div><div class="bill-sub">${b.date}${note}</div></div><div class="bill-amount ${cls}">${sign}${Number(b.amount).toFixed(2)}</div></div>`;
+                html += `<div class="bill-item" onclick="editBill(${b.id})">`;
+                html += `<div class="bill-icon">${categoryIcon(b.category)}</div>`;
+                html += `<div class="bill-info"><div class="bill-cat">${escapeHtml(b.category)}</div><div class="bill-sub">${b.date}${note}</div></div>`;
+                html += `<div class="bill-right">`;
+                html += `<div class="bill-amount ${cls}">${sign}${Number(b.amount).toFixed(2)}</div>`;
+                html += `<button class="bill-delete" onclick="event.stopPropagation(); deleteBill(${b.id})" title="删除">✕</button>`;
+                html += `</div>`;
+                html += '</div>';
             });
             html += '</div>';
             container.innerHTML = html;
@@ -666,12 +678,7 @@
             currentYear = String(newYear);
             data.currentMonth = currentMonth;
             saveData();
-            // 若统计视图处于按年模式，同步年份
-            if (statsMode === 'year') {
-                // 年份不变，但月份变化不影响年份模式，保持原年份
-            } else {
-                render();
-            }
+            render();
         }
         document.getElementById('statsPrevMonth').addEventListener('click', () => changeStatsMonth(-1));
         document.getElementById('statsNextMonth').addEventListener('click', () => changeStatsMonth(1));
@@ -689,7 +696,7 @@
         document.getElementById('statsPrevYear').addEventListener('click', () => changeStatsYear(-1));
         document.getElementById('statsNextYear').addEventListener('click', () => changeStatsYear(1));
 
-        // 账单视图内的月份切换（与原逻辑一致）
+        // 账单视图内的月份切换
         function changeMonth(delta) {
             const [year, month] = currentMonth.split('-').map(Number);
             let newYear = year, newMonth = month + delta;
@@ -704,7 +711,7 @@
         document.getElementById('nextMonth').addEventListener('click', () => changeMonth(1));
 
         // ========================================
-        // 记一笔
+        // 记一笔 / 编辑账单
         // ========================================
         function updateCategorySelect() {
             const type = document.getElementById('inputType').value;
@@ -713,19 +720,67 @@
             select.innerHTML = '';
             list.forEach(cat => { const opt = document.createElement('option'); opt.value = cat; opt.textContent = cat; select.appendChild(opt); });
         }
-        function openAddModal() {
+
+        function openAddModal(billId = null) {
             document.getElementById('billForm').reset();
-            document.getElementById('inputType').value = 'expense';
-            updateCategorySelect();
-            document.getElementById('inputDate').value = getTodayStr();
-            document.getElementById('inputNote').value = '';
+            editingBillId = billId;
+
+            if (billId) {
+                const bill = data.bills.find(b => b.id === billId);
+                if (!bill) { editingBillId = null; return; }
+                document.getElementById('inputType').value = bill.type;
+                updateCategorySelect();
+                const categorySelect = document.getElementById('inputCategory');
+                if (Array.from(categorySelect.options).some(opt => opt.value === bill.category)) {
+                    categorySelect.value = bill.category;
+                }
+                document.getElementById('inputAmount').value = bill.amount;
+                document.getElementById('inputDate').value = bill.date;
+                document.getElementById('inputNote').value = bill.note === '无备注' ? '' : bill.note;
+                document.getElementById('addModalTitle').textContent = '✏️ 编辑账单';
+                document.getElementById('saveBillBtn').textContent = '✅ 更新';
+            } else {
+                document.getElementById('inputType').value = 'expense';
+                updateCategorySelect();
+                document.getElementById('inputDate').value = getTodayStr();
+                document.getElementById('inputNote').value = '';
+                document.getElementById('addModalTitle').textContent = '✏️ 记一笔';
+                document.getElementById('saveBillBtn').textContent = '✅ 保存';
+            }
             document.getElementById('addModal').classList.add('show');
         }
-        function closeAddModal() { document.getElementById('addModal').classList.remove('show'); }
-        document.getElementById('addBillBtn').addEventListener('click', openAddModal);
+
+        function closeAddModal() {
+            document.getElementById('addModal').classList.remove('show');
+            editingBillId = null;
+            document.getElementById('addModalTitle').textContent = '✏️ 记一笔';
+            document.getElementById('saveBillBtn').textContent = '✅ 保存';
+        }
+
+        function editBill(id) {
+            openAddModal(id);
+        }
+
+        function deleteBill(id) {
+            const bill = data.bills.find(b => b.id === id);
+            if (!bill) return;
+            if (!confirm(`确定删除这笔 ${bill.category} ${bill.type === 'expense' ? '支出' : '收入'} 吗？`)) return;
+
+            // 恢复余额
+            if (bill.type === 'expense') data.balance = Math.round((data.balance + bill.amount) * 100) / 100;
+            else data.balance = Math.round((data.balance - bill.amount) * 100) / 100;
+
+            // 删除记录
+            data.bills = data.bills.filter(b => b.id !== id);
+            saveData();
+            render();
+        }
+
+        document.getElementById('addBillBtn').addEventListener('click', function() { openAddModal(); });
         document.getElementById('closeAddModal').addEventListener('click', closeAddModal);
         document.getElementById('addModal').addEventListener('click', function(e) { if (e.target === this) closeAddModal(); });
         document.getElementById('inputType').addEventListener('change', updateCategorySelect);
+
         document.getElementById('billForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const type = document.getElementById('inputType').value;
@@ -736,14 +791,45 @@
             if (!amount || amount <= 0) { alert('请输入有效金额'); return; }
             if (!category) { alert('请选择分类'); return; }
             if (!date) { alert('请选择日期'); return; }
-            const id = data.bills.length > 0 ? Math.max(...data.bills.map(b => b.id)) + 1 : 1;
-            data.bills.push({ id, type, category, amount: Math.round(amount * 100) / 100, date, note });
-            if (type === 'expense') data.balance = Math.round((data.balance - amount) * 100) / 100;
-            else data.balance = Math.round((data.balance + amount) * 100) / 100;
-            currentMonth = date.substring(0, 7);
-            currentYear = currentMonth.substring(0, 4);
-            data.currentMonth = currentMonth;
-            saveData(); closeAddModal(); render(); switchView('list');
+
+            if (editingBillId) {
+                // 找到原账单
+                const oldBill = data.bills.find(b => b.id === editingBillId);
+                if (!oldBill) { editingBillId = null; closeAddModal(); return; }
+
+                // 先恢复旧记录对余额的影响
+                if (oldBill.type === 'expense') data.balance = Math.round((data.balance + oldBill.amount) * 100) / 100;
+                else data.balance = Math.round((data.balance - oldBill.amount) * 100) / 100;
+
+                // 再应用新记录对余额的影响
+                if (type === 'expense') data.balance = Math.round((data.balance - amount) * 100) / 100;
+                else data.balance = Math.round((data.balance + amount) * 100) / 100;
+
+                // 更新数据
+                oldBill.type = type;
+                oldBill.category = category;
+                oldBill.amount = Math.round(amount * 100) / 100;
+                oldBill.date = date;
+                oldBill.note = note;
+
+                currentMonth = date.substring(0, 7);
+                currentYear = currentMonth.substring(0, 4);
+                data.currentMonth = currentMonth;
+                saveData();
+                closeAddModal();
+                render();
+                switchView('list');
+            } else {
+                // 新增账单
+                const id = data.bills.length > 0 ? Math.max(...data.bills.map(b => b.id)) + 1 : 1;
+                data.bills.push({ id, type, category, amount: Math.round(amount * 100) / 100, date, note });
+                if (type === 'expense') data.balance = Math.round((data.balance - amount) * 100) / 100;
+                else data.balance = Math.round((data.balance + amount) * 100) / 100;
+                currentMonth = date.substring(0, 7);
+                currentYear = currentMonth.substring(0, 4);
+                data.currentMonth = currentMonth;
+                saveData(); closeAddModal(); render(); switchView('list');
+            }
         });
 
         // ========================================
